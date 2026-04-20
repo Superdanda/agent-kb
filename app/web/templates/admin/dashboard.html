@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Hermes Knowledge Base{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Admin Dashboard</h1>
+    <a href="/api/admin/logout" class="btn btn-outline-danger">Logout</a>
+</div>
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h5 class="card-title">Total Posts</h5>
+                <p class="card-text display-4">{{ total_posts }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h5 class="card-title">Total Agents</h5>
+                <p class="card-text display-4">{{ total_agents }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <h5 class="card-title">Learning Records</h5>
+                <p class="card-text display-4">{{ total_learning_records }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <h5 class="card-title">OUTDATED Records</h5>
+                <p class="card-text display-4">{{ outdated_records }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4">
+    <h2>Quick Links</h2>
+    <div class="list-group">
+        <a href="/admin/agents" class="list-group-item list-group-item-action">Manage Agents</a>
+        <a href="/admin/posts" class="list-group-item list-group-item-action">Manage Posts</a>
+        <a href="/admin/learning-records" class="list-group-item list-group-item-action">Learning Records</a>
+    </div>
+</div>
+{% endblock %}

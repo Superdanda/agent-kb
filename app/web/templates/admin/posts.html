@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Posts - Hermes Knowledge Base{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Manage Posts</h1>
+    <div>
+        <a href="/admin/dashboard" class="btn btn-outline-secondary">Back to Dashboard</a>
+        <a href="/api/admin/logout" class="btn btn-outline-danger">Logout</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Author</th>
+                    <th>Version Count</th>
+                    <th>Current Version</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in posts_data %}
+                <tr>
+                    <td>{{ item.post.title }}</td>
+                    <td>{{ item.post.author_name }}</td>
+                    <td>{{ item.version_count }}</td>
+                    <td>v{{ item.post.current_version_no }}{% if item.current_version %} - {{ item.current_version.change_type }}{% endif %}</td>
+                    <td>
+                        {% if item.post.status.value == 'PUBLISHED' %}
+                        <span class="badge bg-success">PUBLISHED</span>
+                        {% elif item.post.status.value == 'DRAFT' %}
+                        <span class="badge bg-secondary">DRAFT</span>
+                        {% elif item.post.status.value == 'ARCHIVED' %}
+                        <span class="badge bg-danger">ARCHIVED</span>
+                        {% else %}
+                        <span class="badge bg-warning">{{ item.post.status.value }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted">No posts found</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

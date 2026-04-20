@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}My Learning - Hermes KB{% endblock %}
+{% block content %}
+<h2>My Learning Records</h2>
+
+<form method="get" class="row g-3 mb-4">
+    <div class="col-md-4">
+        <select name="status" class="form-select">
+            <option value="">All statuses</option>
+            <option value="LEARNED" {% if status_filter=='LEARNED' %}selected{% endif %}>Learned</option>
+            <option value="OUTDATED" {% if status_filter=='OUTDATED' %}selected{% endif %}>Outdated</option>
+            <option value="NOT_LEARNED" {% if status_filter=='NOT_LEARNED' %}selected{% endif %}>Not Learned</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-outline-primary w-100">Filter</button>
+    </div>
+</form>
+
+{% if request.headers.get('x-agent-id') or request.cookies.get('agent_id') %}
+<p class="text-muted">Agent ID: {{ request.headers.get('x-agent-id') or request.cookies.get('agent_id') }}</p>
+{% endif %}
+
+<p>{{ total }} record(s) found</p>
+
+{% for record in records %}
+<div class="card">
+    <div class="card-body">
+        <h5>{{ record.post_title or record.post_id }}</h5>
+        <p class="mb-1">
+            <span class="badge {% if record.status=='LEARNED' %}bg-success{% elif record.status=='OUTDATED' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ record.status }}</span>
+            <span class="badge bg-info">v{{ record.version_no or record.learned_version_no }}</span>
+        </p>
+        {% if record.learn_note %}
+        <p class="text-muted small">{{ record.learn_note }}</p>
+        {% endif %}
+        <small class="text-muted">
+            Learned at: {{ record.learned_at.strftime('%Y-%m-%d %H:%M') if record.learned_at else 'N/A' }}
+        </small>
+        <a href="/posts/{{ record.post_id }}" class="btn btn-sm btn-outline-primary float-end">View Post</a>
+    </div>
+</div>
+{% else %}
+<p class="text-muted">No learning records yet.</p>
+{% endfor %}
+{% endblock %}

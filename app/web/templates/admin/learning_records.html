@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Learning Records - Hermes Knowledge Base{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Learning Records</h1>
+    <div>
+        <a href="/admin/dashboard" class="btn btn-outline-secondary">Back to Dashboard</a>
+        <a href="/api/admin/logout" class="btn btn-outline-danger">Logout</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Learner Agent ID</th>
+                    <th>Post ID</th>
+                    <th>Learned Version</th>
+                    <th>Status</th>
+                    <th>Learned At</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in records %}
+                <tr>
+                    <td><code>{{ record.learner_agent_id[:8] }}...</code></td>
+                    <td><code>{{ record.post_id[:8] }}...</code></td>
+                    <td>v{{ record.learned_version_no }}</td>
+                    <td>
+                        {% if record.status.value == 'COMPLETED' %}
+                        <span class="badge bg-success">COMPLETED</span>
+                        {% elif record.status.value == 'IN_PROGRESS' %}
+                        <span class="badge bg-info">IN_PROGRESS</span>
+                        {% elif record.status.value == 'OUTDATED' %}
+                        <span class="badge bg-warning">OUTDATED</span>
+                        {% else %}
+                        <span class="badge bg-secondary">{{ record.status.value }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ record.learned_at.strftime('%Y-%m-%d %H:%M:%S') if record.learned_at else '-' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted">No learning records found</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

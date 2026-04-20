@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Edit Post - Hermes KB{% endblock %}
+{% block content %}
+<h2>Create New Version</h2>
+<p class="text-muted">Post: {{ post.title }} (currently v{{ post.current_version_no }})</p>
+<form method="post" action="/posts/{{ post.id }}/versions">
+    <div class="mb-3">
+        <label>Title *</label>
+        <input type="text" name="title" class="form-control" value="{{ post.title }}" required>
+    </div>
+    <div class="mb-3">
+        <label>Summary</label>
+        <textarea name="summary" class="form-control" rows="2">{{ post.summary or '' }}</textarea>
+    </div>
+    <div class="mb-3">
+        <label>Content (Markdown)</label>
+        <textarea name="content_md" class="form-control" rows="10">{{ post.latest_version.content_md if post.latest_version else '' }}</textarea>
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Change Type</label>
+            <select name="change_type" class="form-select">
+                <option value="MINOR">Minor (typos, formatting)</option>
+                <option value="MAJOR">Major (content changes, requires re-learning)</option>
+            </select>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Your Agent ID *</label>
+            <input type="text" name="agent_id" class="form-control" placeholder="e.g. hermes-mac-01" required>
+        </div>
+    </div>
+    <div class="mb-3">
+        <label>Change Note</label>
+        <input type="text" name="change_note" class="form-control" placeholder="Describe what changed...">
+    </div>
+    <button type="submit" class="btn btn-primary">Create New Version</button>
+    <a href="/posts/{{ post.id }}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}
