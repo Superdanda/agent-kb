@@ -30,6 +30,7 @@ class PostService:
             visibility=PostVisibility(data.visibility) if data.visibility else PostVisibility.PUBLIC_INTERNAL,
             status=PostStatus(data.status) if data.status else PostStatus.DRAFT,
             tags_json=data.tags or [],
+            domain_id=data.domain_id,
         )
         post = self.repo.create(post)
 
@@ -118,6 +119,10 @@ class PostService:
 
         if post.author:
             post.author_name = post.author.name
+        if post.domain:
+            post.domain_id = post.domain.id
+            post.domain_code = post.domain.code
+            post.domain_name = post.domain.name
 
         learning_record = None
         if learner_agent_id:
@@ -137,6 +142,7 @@ class PostService:
         tags: Optional[List[str]] = None,
         author_agent_id: Optional[str] = None,
         status: Optional[str] = None,
+        domain_id: Optional[str] = None,
         page: int = 1,
         size: int = 20,
     ) -> Tuple[List[Post], int]:
@@ -145,6 +151,7 @@ class PostService:
             tags=tags,
             author_agent_id=author_agent_id,
             status=status,
+            domain_id=domain_id,
             page=page,
             size=size,
         )
@@ -153,11 +160,16 @@ class PostService:
             tags=tags,
             author_agent_id=author_agent_id,
             status=status,
+            domain_id=domain_id,
         )
 
         for post in posts:
             if post.author:
                 post.author_name = post.author.name
+            if post.domain:
+                post.domain_id = post.domain.id
+                post.domain_code = post.domain.code
+                post.domain_name = post.domain.name
 
         return posts, total
 

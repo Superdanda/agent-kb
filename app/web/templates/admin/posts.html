@@ -11,12 +11,30 @@
     </div>
 </div>
 
+<form method="get" class="row g-3 mb-4">
+    <div class="col-md-4">
+        <select name="domain_id" class="form-select">
+            <option value="">All domains</option>
+            {% for domain in domains %}
+            <option value="{{ domain.id }}" {% if domain_id==domain.id %}selected{% endif %}>{{ domain.icon }} {{ domain.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-outline-primary">Filter</button>
+        {% if domain_id %}
+        <a href="/admin/posts" class="btn btn-outline-secondary">Clear</a>
+        {% endif %}
+    </div>
+</form>
+
 <div class="card">
     <div class="card-body">
         <table class="table table-striped table-hover">
             <thead>
                 <tr>
                     <th>Title</th>
+                    <th>Domain</th>
                     <th>Author</th>
                     <th>Version Count</th>
                     <th>Current Version</th>
@@ -27,6 +45,13 @@
                 {% for item in posts_data %}
                 <tr>
                     <td>{{ item.post.title }}</td>
+                    <td>
+                        {% if item.post.domain %}
+                        <span class="badge" style="background-color: {{ item.post.domain.color }}; color: white; padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.85em;">{{ item.post.domain.icon }} {{ item.post.domain.name }}</span>
+                        {% else %}
+                        <span class="badge bg-secondary" style="padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.85em;">未分类</span>
+                        {% endif %}
+                    </td>
                     <td>{{ item.post.author_name }}</td>
                     <td>{{ item.version_count }}</td>
                     <td>v{{ item.post.current_version_no }}{% if item.current_version %} - {{ item.current_version.change_type }}{% endif %}</td>
@@ -44,7 +69,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="5" class="text-center text-muted">No posts found</td>
+                    <td colspan="6" class="text-center text-muted">No posts found</td>
                 </tr>
                 {% endfor %}
             </tbody>

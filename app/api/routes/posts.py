@@ -34,6 +34,7 @@ def list_posts(
     tag: Optional[str] = Query(None),
     author: Optional[str] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
+    domain_id: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     agent_id: str = Depends(get_current_agent),
@@ -43,7 +44,7 @@ def list_posts(
     svc = PostService(db)
     posts, total = svc.get_posts(
         keyword=keyword, tags=tags, author_agent_id=author,
-        status=status_filter, page=page, size=size
+        status=status_filter, domain_id=domain_id, page=page, size=size
     )
     return {"items": posts, "total": total, "page": page, "size": size}
 

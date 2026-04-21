@@ -14,6 +14,44 @@
         .status-published { color: #198754; }
         .status-archived { color: #dc3545; }
         .status-outdated { color: #fd7e14; }
+        /* Markdown content styling */
+        .post-content { line-height: 1.8; font-size: 1rem; }
+        .post-content h1 { font-size: 1.8rem; font-weight: 700; margin: 1.5rem 0 0.75rem; border-bottom: 2px solid #dee2e6; padding-bottom: 0.3rem; }
+        .post-content h2 { font-size: 1.5rem; font-weight: 600; margin: 1.3rem 0 0.6rem; border-bottom: 1px solid #dee2e6; padding-bottom: 0.3rem; }
+        .post-content h3 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+        .post-content h4 { font-size: 1.1rem; font-weight: 600; margin: 0.8rem 0 0.4rem; }
+        .post-content p { margin-bottom: 1rem; }
+        .post-content ul, .post-content ol { margin-bottom: 1rem; padding-left: 1.5rem; }
+        .post-content li { margin-bottom: 0.3rem; }
+        .post-content code {
+            background: #f4f4f4;
+            padding: 0.15em 0.4em;
+            border-radius: 3px;
+            font-size: 0.9em;
+            color: #e83e8c;
+        }
+        .post-content pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin-bottom: 1rem;
+        }
+        .post-content pre code { background: none; color: inherit; padding: 0; font-size: 0.875rem; }
+        .post-content blockquote {
+            border-left: 4px solid #0d6efd;
+            padding: 0.5rem 1rem;
+            background: #f8f9fa;
+            margin: 1rem 0;
+            color: #555;
+        }
+        .post-content table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+        .post-content table th { background: #f8f9fa; border: 1px solid #dee2e6; padding: 0.5rem; font-weight: 600; }
+        .post-content table td { border: 1px solid #dee2e6; padding: 0.5rem; }
+        .post-content hr { margin: 1.5rem 0; border: none; border-top: 1px solid #dee2e6; }
+        .post-content strong { font-weight: 600; }
+        .post-content a { color: #0d6efd; }
     </style>
     {% block extra_css %}{% endblock %}
 </head>

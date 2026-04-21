@@ -15,9 +15,20 @@
         <label>Content (Markdown)</label>
         <textarea name="content_md" class="form-control" rows="10" placeholder="Write your experience in Markdown..."></textarea>
     </div>
-    <div class="mb-3">
-        <label>Tags (comma separated)</label>
-        <input type="text" name="tags" class="form-control" placeholder="wsl, maven, python">
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Domain (optional)</label>
+            <select name="domain_id" class="form-select">
+                <option value="">-- Select domain --</option>
+                {% for domain in domains %}
+                <option value="{{ domain.id }}">{{ domain.icon }} {{ domain.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Tags (comma separated)</label>
+            <input type="text" name="tags" class="form-control" placeholder="wsl, maven, python">
+        </div>
     </div>
     <div class="row">
         <div class="col-md-6 mb-3">

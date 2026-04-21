@@ -22,7 +22,7 @@ class PostRepository:
     def get_by_id(self, id: str) -> Post | None:
         return (
             self.db.query(Post)
-            .options(joinedload(Post.author))
+            .options(joinedload(Post.author), joinedload(Post.domain))
             .filter(Post.id == id)
             .first()
         )
@@ -49,10 +49,11 @@ class PostRepository:
         tags: Optional[List[str]] = None,
         author_agent_id: Optional[str] = None,
         status: Optional[str] = None,
+        domain_id: Optional[str] = None,
         page: int = 1,
         size: int = 20,
     ) -> List[Post]:
-        query = self.db.query(Post).options(joinedload(Post.author))
+        query = self.db.query(Post).options(joinedload(Post.author), joinedload(Post.domain))
 
         if keyword:
             query = query.filter(
@@ -72,6 +73,9 @@ class PostRepository:
         if status:
             query = query.filter(Post.status == status)
 
+        if domain_id:
+            query = query.filter(Post.domain_id == domain_id)
+
         query = query.order_by(Post.updated_at.desc())
         offset = (page - 1) * size
         return query.offset(offset).limit(size).all()
@@ -82,6 +86,7 @@ class PostRepository:
         tags: Optional[List[str]] = None,
         author_agent_id: Optional[str] = None,
         status: Optional[str] = None,
+        domain_id: Optional[str] = None,
     ) -> int:
         query = self.db.query(Post)
 
@@ -102,6 +107,9 @@ class PostRepository:
 
         if status:
             query = query.filter(Post.status == status)
+
+        if domain_id:
+            query = query.filter(Post.domain_id == domain_id)
 
         return query.count()
 

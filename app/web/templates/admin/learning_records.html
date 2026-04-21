@@ -17,7 +17,8 @@
             <thead>
                 <tr>
                     <th>Learner Agent ID</th>
-                    <th>Post ID</th>
+                    <th>Post</th>
+                    <th>Domain</th>
                     <th>Learned Version</th>
                     <th>Status</th>
                     <th>Learned At</th>
@@ -28,6 +29,15 @@
                 <tr>
                     <td><code>{{ record.learner_agent_id[:8] }}...</code></td>
                     <td><code>{{ record.post_id[:8] }}...</code></td>
+                    <td>
+                        {% if record.post and record.post.domain %}
+                        <span class="badge" style="background-color: {{ record.post.domain.color }}; color: white; padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.85em;">{{ record.post.domain.icon }} {{ record.post.domain.name }}</span>
+                        {% elif record.post %}
+                        <span class="badge bg-secondary" style="padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.85em;">未分类</span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
                     <td>v{{ record.learned_version_no }}</td>
                     <td>
                         {% if record.status.value == 'COMPLETED' %}
@@ -44,7 +54,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="5" class="text-center text-muted">No learning records found</td>
+                    <td colspan="6" class="text-center text-muted">No learning records found</td>
                 </tr>
                 {% endfor %}
             </tbody>
