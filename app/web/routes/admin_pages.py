@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, status
+from fastapi import APIRouter, Request, Depends, HTTPException, status, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from typing import Optional
 
 from app.core.database import get_db
 from app.models.admin_user import AdminUser
@@ -10,6 +11,7 @@ from app.models.post import Post
 from app.models.post_version import PostVersion
 from app.models.learning_record import LearningRecord, LearningStatus
 from app.api.middleware.admin_auth import get_current_admin
+from app.services.domain_service import DomainService
 from app.web import templates
 
 
@@ -74,10 +76,15 @@ async def admin_agents(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/posts", response_class=HTMLResponse)
-async def admin_posts(request: Request, db: Session = Depends(get_db)):
+async def admin_posts(request: Request, domain_id: Optional[str] = Query(None), db: Session = Depends(get_db)):
     await get_current_admin(request, db)
+    domain_svc = DomainService(db)
 
-    posts = db.query(Post).order_by(Post.created_at.desc()).all()
+    query = db.query(Post).order_by(Post.created_at.desc())
+    if domain_id:
+        query = query.filter(Post.domain_id == domain_id)
+    posts = query.all()
+
     posts_list = []
     for post in posts:
         version_count = db.query(func.count(PostVersion.id)).filter(
@@ -97,9 +104,12 @@ async def admin_posts(request: Request, db: Session = Depends(get_db)):
             "current_version": current_version,
         })
 
+    domains = domain_svc.get_all_domains(include_inactive=False)
     return templates.TemplateResponse("admin/posts.html", {
         "request": request,
         "posts_data": posts_list,
+        "domains": domains,
+        "domain_id": domain_id,
     })
 
 
