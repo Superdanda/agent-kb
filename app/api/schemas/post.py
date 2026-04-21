@@ -11,6 +11,7 @@ class PostCreate(BaseModel):
     tags: List[str] = []
     visibility: str = "PUBLIC_INTERNAL"
     status: str = "DRAFT"
+    domain_id: str
 
 
 class PostUpdate(BaseModel):
@@ -22,6 +23,7 @@ class PostUpdate(BaseModel):
     visibility: Optional[str] = None
     status: Optional[str] = None
     tags: Optional[List[str]] = None
+    domain_id: Optional[str] = None
 
 
 class PostVersionResponse(BaseModel):
@@ -57,6 +59,9 @@ class PostResponse(BaseModel):
     version_count: int = 0
     asset_count: int = 0
     learning_status: Optional[str] = None
+    domain_id: Optional[str] = None
+    domain_code: Optional[str] = None
+    domain_name: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -71,5 +76,8 @@ class PostListItem(BaseModel):
     tags_json: list
     updated_at: datetime
     learning_count: int = 0
+    domain_id: Optional[str] = None
+    domain_code: Optional[str] = None
+    domain_name: Optional[str] = None
 
     model_config = {"from_attributes": True}

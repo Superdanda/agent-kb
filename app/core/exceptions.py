@@ -38,6 +38,11 @@ class AlreadyExistsError(HermesBaseException):
         super().__init__(code="ALREADY_EXISTS", message=message, status_code=409)
 
 
+class ConflictError(HermesBaseException):
+    def __init__(self, message: str = "Resource conflict") -> None:
+        super().__init__(code="CONFLICT", message=message, status_code=409)
+
+
 class FileValidationError(HermesBaseException):
     def __init__(self, message: str = "File validation failed") -> None:
         super().__init__(code="FILE_VALIDATION_ERROR", message=message, status_code=400)

@@ -8,6 +8,7 @@ from app.core.security import encrypt_secret
 from app.core.exceptions import AlreadyExistsError
 from app.models.credential import AgentCredential
 from app.models.agent import Agent, AgentStatus
+from app.repositories.agent_repo import AgentRepository
 
 
 class AgentService:

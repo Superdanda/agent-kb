@@ -34,6 +34,15 @@ def init_scheduler() -> BackgroundScheduler:
         replace_existing=True,
     )
     
+    # Poll and execute due agent schedulers every minute
+    scheduler.add_job(
+        run_agent_scheduler_poll,
+        CronTrigger(second=0),  # Every minute at second 0
+        id="agent_scheduler_poll",
+        name="Poll and execute due agent schedulers",
+        replace_existing=True,
+    )
+    
     logger.info(f"Scheduler initialized with {len(scheduler.get_jobs())} jobs")
     return scheduler
 
@@ -48,3 +57,13 @@ def stop_scheduler():
     if scheduler.running:
         scheduler.shutdown(wait=False)
         logger.info("Scheduler stopped")
+
+
+def run_agent_scheduler_poll():
+    """Poll for due agent schedulers and execute them."""
+    from app.tasks.agent_scheduler_runner import execute_due_schedulers
+    try:
+        execute_due_schedulers()
+    except Exception as e:
+        logger.error(f"Agent scheduler poll error: {e}")
+

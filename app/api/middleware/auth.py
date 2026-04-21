@@ -44,14 +44,17 @@ def _log_security_event(
     detail: str,
     source_ip: str,
 ) -> None:
-    log = SecurityEventLog(
-        event_type=event_type,
-        agent_id=agent_id,
-        detail=detail,
-        source_ip=source_ip,
-    )
-    db.add(log)
-    db.commit()
+    try:
+        log = SecurityEventLog(
+            event_type=event_type,
+            agent_id=agent_id,
+            detail=detail,
+            source_ip=source_ip,
+        )
+        db.add(log)
+        db.commit()
+    except Exception:
+        db.rollback()  # 安全日志失败不影响主流程
 
 
 async def get_current_agent(
@@ -171,7 +174,7 @@ async def get_current_agent(
         raise SignatureError("Signature verification failed")
 
     new_nonce = ApiNonce(
-        agent_id=agent_id,
+        agent_id=credential.agent_id,
         nonce=nonce,
         expires_at=now + time_window,
     )
