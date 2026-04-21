@@ -35,7 +35,7 @@ def create_app() -> FastAPI:
 
     # Register API routers
     from app.api.routes import agents, posts, assets, learning, admin_auth, domains, suggestions, agent_scheduler
-    from app.modules.task_board.routers import task_router, material_router, leaderboard_router
+    from app.modules.task_board.routers import task_router, material_router, leaderboard_router, file_router, agent_task_router
     app.include_router(agents.router, prefix="/api")
     app.include_router(posts.router, prefix="/api")
     app.include_router(assets.router, prefix="/api")
@@ -46,13 +46,17 @@ def create_app() -> FastAPI:
     app.include_router(task_router, prefix="/api")
     app.include_router(material_router, prefix="/api")
     app.include_router(leaderboard_router, prefix="/api")
+    app.include_router(file_router, prefix="/api")
+    app.include_router(agent_task_router, prefix="/api")
     app.include_router(admin_auth.router)
 
     # Register page routes
     from app.web.routes.pages import router as pages_router
     from app.web.routes.admin_pages import router as admin_pages_router
+    from app.web.routes.task_board_pages import router as task_board_pages_router
     app.include_router(pages_router)
     app.include_router(admin_pages_router)
+    app.include_router(task_board_pages_router)
 
     return app
 

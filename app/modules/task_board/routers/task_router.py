@@ -11,6 +11,9 @@ from app.modules.task_board.models.task import Task, TaskPriority, TaskDifficult
 from app.modules.task_board.models.task_status_log import TaskStatusLog
 from app.modules.task_board.models.task_rating import TaskRating, RatingDimension
 from app.repositories.agent_repo import AgentRepository
+from app.modules.task_board.schemas.task import TaskCreate, TaskUpdate, TaskResponse
+from app.modules.task_board.schemas.task_status_log import TaskStatusLogResponse
+from app.modules.task_board.schemas.task_rating import TaskRatingCreate, TaskRatingResponse
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -65,7 +68,7 @@ def create_task(
     db.commit()
     db.refresh(task)
     
-    return task
+    return TaskResponse.model_validate(task)
 
 
 @router.get("")
@@ -83,9 +86,9 @@ def list_tasks(
     query = db.query(Task)
     
     if status_filter:
-        query = query.filter(Task.status == status_filter)
+        query = query.filter(Task.status == TaskStatus(status_filter))
     if priority:
-        query = query.filter(Task.priority == priority)
+        query = query.filter(Task.priority == TaskPriority(priority))
     if assigned_to:
         query = query.filter(Task.assigned_to_agent_id == assigned_to)
     if created_by:
@@ -96,7 +99,7 @@ def list_tasks(
     total = query.count()
     tasks = query.order_by(Task.created_at.desc()).offset((page - 1) * size).limit(size).all()
     
-    return {"items": tasks, "total": total, "page": page, "size": size}
+    return {"items": [TaskResponse.model_validate(t) for t in tasks], "total": total, "page": page, "size": size}
 
 
 @router.get("/{task_id}")
@@ -115,7 +118,7 @@ def get_task(
     if task.assigned_to_agent_id:
         task.assigned_to_name = get_agent_name(db, task.assigned_to_agent_id)
     
-    return task
+    return TaskResponse.model_validate(task)
 
 
 @router.put("/{task_id}")
@@ -164,7 +167,7 @@ def update_task(
     db.commit()
     db.refresh(task)
     
-    return task
+    return TaskResponse.model_validate(task)
 
 
 @router.post("/{task_id}/status")
@@ -206,7 +209,7 @@ def update_task_status(
     db.commit()
     db.refresh(task)
     
-    return task
+    return TaskResponse.model_validate(task)
 
 
 @router.get("/{task_id}/logs")
@@ -216,7 +219,7 @@ def get_task_status_logs(
     db: Session = Depends(get_db),
 ):
     logs = db.query(TaskStatusLog).filter(TaskStatusLog.task_id == task_id).order_by(TaskStatusLog.created_at).all()
-    return logs
+    return [TaskStatusLogResponse.model_validate(log) for log in logs]
 
 
 @router.post("/{task_id}/rate")
@@ -248,7 +251,7 @@ def rate_task(
         existing.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(existing)
-        return existing
+        return TaskRatingResponse.model_validate(existing)
     
     rating = TaskRating(
         id=str(uuid.uuid4()),
@@ -263,7 +266,7 @@ def rate_task(
     db.commit()
     db.refresh(rating)
     
-    return rating
+    return TaskRatingResponse.model_validate(rating)
 
 
 @router.get("/{task_id}/ratings")
@@ -273,7 +276,7 @@ def get_task_ratings(
     db: Session = Depends(get_db),
 ):
     ratings = db.query(TaskRating).filter(TaskRating.task_id == task_id).all()
-    return ratings
+    return [TaskRatingResponse.model_validate(r) for r in ratings]
 
 
 @router.get("/my/tasks")
@@ -294,4 +297,4 @@ def my_tasks(
     total = query.count()
     tasks = query.order_by(Task.created_at.desc()).offset((page - 1) * size).limit(size).all()
     
-    return {"items": tasks, "total": total, "page": page, "size": size}
+    return {"items": [TaskResponse.model_validate(t) for t in tasks], "total": total, "page": page, "size": size}

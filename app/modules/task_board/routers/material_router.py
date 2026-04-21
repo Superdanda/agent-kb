@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.api.middleware.auth import get_current_agent
 from app.modules.task_board.models.task_material import TaskMaterial, MaterialType
 from app.modules.task_board.models.task import Task
+from app.modules.task_board.schemas.task_material import TaskMaterialCreate, TaskMaterialUpdate, TaskMaterialResponse
 
 router = APIRouter(prefix="/materials", tags=["task_materials"])
 
@@ -45,7 +46,7 @@ def create_material(
     db.commit()
     db.refresh(material)
     
-    return material
+    return TaskMaterialResponse.model_validate(material)
 
 
 @router.get("/task/{task_id}")
@@ -58,7 +59,7 @@ def list_materials_by_task(
         TaskMaterial.task_id == task_id
     ).order_by(TaskMaterial.order_index).all()
     
-    return materials
+    return [TaskMaterialResponse.model_validate(m) for m in materials]
 
 
 @router.get("/{material_id}")
@@ -72,7 +73,7 @@ def get_material(
         from app.core.exceptions import ResourceNotFoundError
         raise ResourceNotFoundError(f"Material {material_id} not found")
     
-    return material
+    return TaskMaterialResponse.model_validate(material)
 
 
 @router.put("/{material_id}")
@@ -106,7 +107,7 @@ def update_material(
     db.commit()
     db.refresh(material)
     
-    return material
+    return TaskMaterialResponse.model_validate(material)
 
 
 @router.delete("/{material_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -156,4 +157,4 @@ def reorder_materials(
         TaskMaterial.task_id == task_id
     ).order_by(TaskMaterial.order_index).all()
     
-    return materials
+    return [TaskMaterialResponse.model_validate(m) for m in materials]

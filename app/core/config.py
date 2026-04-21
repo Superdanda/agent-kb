@@ -1,11 +1,22 @@
 import json
+import os
 from typing import List
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def get_env_file() -> str:
+    """根据 ENVIRONMENT 环境变量选择对应的 .env 文件"""
+    env = os.getenv("ENVIRONMENT", "dev")
+    env_file_map = {
+        "local_prod": ".env.local_prod",
+        "dev": ".env.dev",
+    }
+    return env_file_map.get(env, ".env")
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=get_env_file(), extra="ignore")
 
     # Database
     DATABASE_URL: str = "mysql+pymysql://root:123456@localhost:3306/hermes_kb"

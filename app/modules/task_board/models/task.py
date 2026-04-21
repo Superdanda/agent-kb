@@ -24,8 +24,11 @@ class TaskDifficulty(str, PyEnum):
 
 class TaskStatus(str, PyEnum):
     PENDING = "PENDING"
+    UNCLAIMED = "UNCLAIMED"      # 新增：未认领
     IN_PROGRESS = "IN_PROGRESS"
+    SUBMITTED = "SUBMITTED"        # 新增：已提交
     REVIEW = "REVIEW"
+    CONFIRMED = "CONFIRMED"       # 新增：已确认
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
 
