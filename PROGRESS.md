@@ -1,6 +1,9 @@
 # Task Board 模块开发进度
 
 > 更新时间: 2026-04-21
+> 项目路径: `E:\code\hermes-knowledge-base` (WSL: `/mnt/e/code/hermes-knowledge-base`)
+
+---
 
 ## 概述
 
@@ -10,180 +13,387 @@
 
 ## 一、已完成 ✅
 
-### 1.1 Models (数据库模型)
+### 1.1 项目结构概览
 
-| 文件 | 说明 |
-|------|------|
-| `app/modules/task_board/models/task.py` | Task 任务模型（状态、优先级、难度、积分等） |
-| `app/modules/task_board/models/task_material.py` | TaskMaterial 材料模型（上传的附件/成果） |
-| `app/modules/task_board/models/task_status_log.py` | TaskStatusLog 状态变更日志 |
-| `app/modules/task_board/models/task_rating.py` | TaskRating 任务评分（多维度） |
-| `app/modules/task_board/models/leaderboard.py` | Leaderboard 排行榜（周期积分） |
-| `app/modules/task_board/models/__init__.py` | 模型导出 |
-
-**任务状态枚举 (TaskStatus):**
-- `pending` - 待发布
-- `unclaimed` - 未承接
-- `in_progress` - 进行中
-- `submitted` - 已提交待确认
-- `confirmed` - 已确认完成
-- `rated` - 已评分
-- `cancelled` - 已取消
-
-**任务优先级 (TaskPriority):** low / medium / high / urgent
-
-**任务难度 (TaskDifficulty):** easy / medium / hard / expert
-
-### 1.2 Routers (API 路由)
-
-| 文件 | 说明 |
-|------|------|
-| `app/modules/task_board/routers/task_router.py` | 任务 CRUD + 状态变更 + 评分 |
-| `app/modules/task_board/routers/material_router.py` | 材料上传/下载/管理 |
-| `app/modules/task_board/routers/leaderboard_router.py` | 排行榜 API |
-| `app/modules/task_board/routers/__init__.py` | 路由导出 |
-
-**API 端点:**
 ```
-POST   /api/tasks              - 创建任务
-GET    /api/tasks              - 任务列表（分页/筛选）
-GET    /api/tasks/{id}         - 任务详情
-PUT    /api/tasks/{id}         - 更新任务
-POST   /api/tasks/{id}/status  - 更新状态
-GET    /api/tasks/{id}/logs    - 状态变更日志
-POST   /api/tasks/{id}/rate    - 评分
-GET    /api/tasks/{id}/ratings - 评分列表
-GET    /api/tasks/my/tasks     - 我的任务
-
-POST   /api/materials          - 上传材料
-GET    /api/materials/task/{id} - 任务材料列表
-GET    /api/materials/{id}      - 材料详情
-PUT    /api/materials/{id}     - 更新材料
-DELETE /api/materials/{id}     - 删除材料
-POST   /api/materials/reorder  - 排序材料
-
-GET    /api/leaderboard              - 排行榜
-GET    /api/leaderboard/my-rank     - 我的排名
-GET    /api/leaderboard/agent/{id}  - Agent 统计
+E:\code\hermes-knowledge-base\
+├── app/
+│   ├── modules/task_board/           # 任务看板模块
+│   │   ├── models/                   # SQLAlchemy 模型
+│   │   ├── routers/                  # FastAPI 路由
+│   │   └── services/                 # 业务逻辑层
+│   ├── utils/
+│   │   └── security_check.py         # 文件安全审查工具
+│   └── __init__.py                   # 路由已注册
+├── alembic/versions/
+│   └── 005_add_task_board.py         # 数据库迁移
+└── PROGRESS.md                       # 本文件
 ```
 
-### 1.3 Services (业务逻辑)
+### 1.2 Models (数据库模型) ✅
+
+| 文件 | 类名 | 说明 |
+|------|------|------|
+| `app/modules/task_board/models/task.py` | `Task` | 任务主表 |
+| `app/modules/task_board/models/task_material.py` | `TaskMaterial` | 任务材料（附件） |
+| `app/modules/task_board/models/task_status_log.py` | `TaskStatusLog` | 状态变更日志 |
+| `app/modules/task_board/models/task_rating.py` | `TaskRating` | 任务评分 |
+| `app/modules/task_board/models/leaderboard.py` | `Leaderboard` | 排行榜 |
+| `app/modules/task_board/models/__init__.py` | - | 导出所有模型 |
+
+**Task 模型字段:**
+```python
+id: UUID (PK)
+title: String(512)          # 任务标题
+description: Text           # 任务描述
+created_by_agent_id: FK     # 创建者
+assigned_to_agent_id: FK   # 承接者（Agent）
+domain_id: FK              # 知识域
+priority: Enum(LOW/MEDIUM/HIGH/URGENT)
+difficulty: Enum(EASY/MEDIUM/HARD/EXPERT)
+status: Enum(PENDING/IN_PROGRESS/REVIEW/COMPLETED/CANCELLED)
+points: Integer             # 积分
+estimated_hours: Integer    # 预估工时
+actual_hours: Integer       # 实际工时
+tags_json: JSON             # 标签
+metadata_json: JSON         # 元数据
+due_date: DateTime          # 截止时间
+started_at: DateTime        # 开始时间
+completed_at: DateTime      # 完成时间
+created_at/updated_at
+```
+
+**枚举定义:**
+```python
+class TaskPriority(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    URGENT = "URGENT"
+
+class TaskDifficulty(str, Enum):
+    EASY = "EASY"
+    MEDIUM = "MEDIUM"
+    HARD = "HARD"
+    EXPERT = "EXPERT"
+
+class TaskStatus(str, Enum):
+    PENDING = "PENDING"       # 待处理
+    IN_PROGRESS = "IN_PROGRESS"  # 进行中
+    REVIEW = "REVIEW"         # 待审核
+    COMPLETED = "COMPLETED"   # 已完成
+    CANCELLED = "CANCELLED"   # 已取消
+
+class MaterialType(str, Enum):
+    DOCUMENT = "DOCUMENT"
+    IMAGE = "IMAGE"
+    LINK = "LINK"
+    FILE = "FILE"
+    REFERENCE = "REFERENCE"
+
+class RatingDimension(str, Enum):
+    QUALITY = "QUALITY"
+    SPEED = "SPEED"
+    COMMUNICATION = "COMMUNICATION"
+    PROBLEM_SOLVING = "PROBLEM_SOLVING"
+    OVERALL = "OVERALL"
+
+class LeaderboardPeriod(str, Enum):
+    DAILY = "DAILY"
+    WEEKLY = "WEEKLY"
+    MONTHLY = "MONTHLY"
+    ALL_TIME = "ALL_TIME"
+```
+
+### 1.3 Routers (API 路由) ✅
+
+| 文件 | 前缀 | 端点 |
+|------|------|------|
+| `app/modules/task_board/routers/task_router.py` | `/tasks` | 任务 CRUD + 状态变更 + 评分 |
+| `app/modules/task_board/routers/material_router.py` | `/materials` | 材料管理 |
+| `app/modules/task_board/routers/leaderboard_router.py` | `/leaderboard` | 排行榜 |
+| `app/modules/task_board/routers/__init__.py` | - | 导出 |
+
+**API 端点详细:**
+
+```
+# 任务 (task_router.py)
+POST   /api/tasks                        - 创建任务
+GET    /api/tasks                        - 任务列表（?status=&priority=&page=&size=）
+GET    /api/tasks/{task_id}              - 任务详情
+PUT    /api/tasks/{task_id}              - 更新任务
+POST   /api/tasks/{task_id}/status       - 更新状态（body: new_status, change_reason）
+GET    /api/tasks/{task_id}/logs          - 状态变更日志
+POST   /api/tasks/{task_id}/rate          - 评分（body: rated_agent_id, dimension, score, comment）
+GET    /api/tasks/{task_id}/ratings       - 评分列表
+GET    /api/tasks/my/tasks                - 我的任务
+
+# 材料 (material_router.py)
+POST   /api/materials                     - 创建材料
+GET    /api/materials/task/{task_id}      - 任务材料列表
+GET    /api/materials/{material_id}       - 材料详情
+PUT    /api/materials/{material_id}        - 更新材料
+DELETE /api/materials/{material_id}       - 删除材料
+POST   /api/materials/reorder             - 排序（body: task_id, material_ids）
+
+# 排行榜 (leaderboard_router.py)
+GET    /api/leaderboard                   - 排行榜（?period=DAILY/WEEKLY/MONTHLY/ALL_TIME）
+GET    /api/leaderboard/my-rank           - 我的排名
+GET    /api/leaderboard/agent/{agent_id}  - Agent 统计
+```
+
+**路由注册位置:** `app/__init__.py` 第 38, 46-48 行
+
+### 1.4 Services (业务逻辑) ✅
+
+| 文件 | 类名 | 说明 |
+|------|------|------|
+| `app/modules/task_board/services/task_service.py` | `TaskService` | 任务 CRUD，状态流转 |
+| `app/modules/task_board/services/material_service.py` | `MaterialService` | 材料管理 |
+| `app/modules/task_board/services/rating_service.py` | `RatingService` | 评分管理 |
+| `app/modules/task_board/services/leaderboard_service.py` | `LeaderboardService` | 排行榜计算 |
+| `app/modules/task_board/services/__init__.py` | - | 导出 |
+
+### 1.5 安全审查工具 ✅
 
 | 文件 | 说明 |
 |------|------|
-| `app/modules/task_board/services/task_service.py` | 任务业务逻辑 |
-| `app/modules/task_board/services/material_service.py` | 材料管理 + 安全审查调用 |
-| `app/modules/task_board/services/rating_service.py` | 评分管理 |
-| `app/modules/task_board/services/leaderboard_service.py` | 排行榜计算 |
-| `app/modules/task_board/services/__init__.py` | 服务导出 |
+| `app/utils/security_check.py` | 文件上传安全审查（337行） |
 
-### 1.4 安全审查工具
+**API:**
+```python
+from app.utils.security_check import validate_file_bytes, validate_zip_safety
+
+# 主检查函数
+result = validate_file_bytes(filename, file_bytes, scan_content=True)
+# result.is_safe: bool
+# result.message: str
+# result.file_type: str (pdf/zip/exe/elf/macho/unknown)
+# result.sha256: str
+# result.threats: List[str]
+
+# ZIP 专项检查
+result = validate_zip_safety(zip_bytes, max_files=100, max_total_size_mb=50)
+```
+
+**检查项:**
+1. 扩展名校验（白名单: `.md .txt .pdf .docx .zip`，黑名单: `.exe .bat .py .html .php` 等）
+2. Magic bytes 校验（识别 pdf/zip/exe/elf/macho）
+3. 扩展名与内容一致性检查
+4. 内容危险模式扫描（`<script>` javascript: `import os` subprocess 等）
+5. ZIP 安全校验（加密检测、路径遍历、嵌套危险文件）
+
+### 1.6 数据库迁移 ✅
 
 | 文件 | 说明 |
 |------|------|
-| `app/utils/security_check.py` | 文件安全审查工具（337行） |
+| `alembic/versions/005_add_task_board.py` | 创建 tasks, task_materials, task_status_logs, task_ratings, leaderboards 表 |
 
-**功能:**
-- 扩展名校验（白名单/黑名单）
-- Magic bytes 校验（PDF/ZIP/EXE/ELF 等）
-- 内容危险模式扫描（`<script>`、javascript:、PHP 标签、恶意代码等）
-- ZIP 安全校验（路径遍历、嵌套危险文件）
-- SHA256 计算
-
-### 1.5 数据库迁移
-
-| 文件 | 说明 |
-|------|------|
-| `alembic/versions/005_add_task_board.py` | 创建所有 task_board 表 |
-
-### 1.6 路由注册
-
-- `app/__init__.py` - 已注册 task_router, material_router, leaderboard_router
+**运行迁移:**
+```bash
+cd /mnt/e/code/hermes-knowledge-base
+alembic upgrade head
+```
 
 ---
 
 ## 二、未完成 ❌
 
-### 2.1 Schemas (Pydantic)
+### 2.1 Schemas (Pydantic) ❌
 
-| 文件 | 状态 |
-|------|------|
-| `app/modules/task_board/schemas/task.py` | ❌ 缺失 |
-| `app/modules/task_board/schemas/task_material.py` | ❌ 缺失 |
-| `app/modules/task_board/schemas/task_rating.py` | ❌ 缺失 |
-| `app/modules/task_board/schemas/leaderboard.py` | ❌ 缺失 |
-| `app/modules/task_board/schemas/task_status_log.py` | ❌ 缺失 |
-
-> 注: routers 目前直接使用 SQLAlchemy 模型作为响应，未经过 Pydantic schema 转换。后续需要补充 schemas。
-
-### 2.2 Agent 定时任务查询系统
-
-| 文件 | 状态 |
-|------|------|
-| `app/modules/task_board/agent_scheduler.py` | ❌ 缺失 |
-
-需要实现:
-- 定时轮询未承接任务（unclaimed 状态）
-- 通知有能力的 Agent
-- 记录轮询日志
-
-### 2.3 前端页面
-
-| 页面 | 状态 |
-|------|------|
-| 任务看板列表页 | ❌ 缺失 |
-| 任务创建/编辑页 | ❌ 缺失 |
-| 任务详情页（含成果下载） | ❌ 缺失 |
-| 排行榜页面 | ❌ 缺失 |
-
-### 2.4 任务状态机完善
-
-当前状态流转:
+**缺失文件:**
 ```
-pending -> unclaimed -> in_progress -> submitted -> confirmed -> rated
-                                              ↓
-                                         cancelled
-any -> cancelled
+app/modules/task_board/schemas/
+├── __init__.py
+├── task.py          # TaskCreate, TaskUpdate, TaskResponse
+├── task_material.py # MaterialCreate, MaterialResponse
+├── task_rating.py    # RatingCreate, RatingResponse
+├── leaderboard.py    # LeaderboardResponse, AgentStats
+└── task_status_log.py # StatusLogResponse
 ```
 
-需要 Agent 侧完善:
-- Agent 承接任务逻辑
-- Agent 提交成果逻辑
-- Agent 取消承接逻辑
+**要求:**
+- 参考 `app/api/schemas/agent.py` 或 `app/api/schemas/domain.py` 的风格
+- 使用 Pydantic v2 (`model_config = {"from_attributes": True}`)
+- 导入对应模型的 Enum 类型
+- **当前 routers 直接返回 SQLAlchemy 模型对象**，需要改为返回 Pydantic schema
 
-### 2.5 激励机制
+**示例 schema 结构:**
+```python
+# app/modules/task_board/schemas/task.py
+from datetime import datetime
+from typing import Optional, List
+from pydantic import BaseModel, Field
+from app.modules.task_board.models.task import TaskPriority, TaskDifficulty, TaskStatus
 
-积分规则（计划）:
-- 任务完成基础积分: 10分
-- 评分加成: score × 2 分
-- 优先级加成: urgent=8, high=5, medium=3, low=0
+class TaskCreate(BaseModel):
+    title: str = Field(..., max_length=512)
+    description: Optional[str] = None
+    priority: TaskPriority = TaskPriority.MEDIUM
+    difficulty: Optional[TaskDifficulty] = None
+    domain_id: Optional[str] = None
+    points: int = 0
+    estimated_hours: Optional[int] = None
+    due_date: Optional[datetime] = None
+    tags: Optional[List[str]] = None
+
+class TaskResponse(BaseModel):
+    id: str
+    title: str
+    description: Optional[str]
+    status: TaskStatus
+    priority: TaskPriority
+    difficulty: Optional[TaskDifficulty]
+    points: int
+    # ... 其他字段
+    model_config = {"from_attributes": True}
+```
+
+### 2.2 Agent 定时任务查询系统 ❌
+
+**缺失文件:** `app/modules/task_board/agent_scheduler.py`
+
+**需求:**
+1. **定时轮询任务**
+   - 每分钟检查 `status = 'UNCLAIMED'` 的任务
+   - 或者检查 `status = 'PENDING'` 需要 Agent 认领
+
+2. **通知 Agent**
+   - 调用 Agent 的消息通知接口
+   - 或者写入任务队列供 Agent 拉取
+
+3. **Agent 承接任务 API**
+   - `POST /api/tasks/{id}/claim` - Agent 承接任务
+   - `POST /api/tasks/{id}/submit` - Agent 提交成果（body: result_summary, materials）
+   - `POST /api/tasks/{id}/abandon` - Agent 放弃任务（需说明原因）
+
+4. **状态机完善**
+   ```
+   PENDING -> UNCLAIMED -> IN_PROGRESS -> SUBMITTED -> REVIEW -> CONFIRMED -> RATED
+                                    |           |
+                                    v           v
+                                CANCELLED   CANCELLED
+   ```
+
+**参考现有调度器:** `app/services/agent_scheduler_service.py` (定时任务框架)
+
+### 2.3 前端页面 ❌
+
+**缺失页面:**
+```
+app/web/templates/task_board/
+├── list.html           # 任务看板列表
+├── detail.html         # 任务详情页
+├── create.html          # 创建任务
+├── edit.html            # 编辑任务
+├── materials.html       # 材料管理
+└── leaderboard.html     # 排行榜
+
+app/web/routes/task_board_pages.py  # 页面路由
+```
+
+**功能要求:**
+
+1. **任务列表页** (`list.html`)
+   - 筛选：状态、优先级、负责人、创建者
+   - 排序：创建时间、优先级、截止时间
+   - 分页
+   - 快捷操作：认领、查看详情
+
+2. **任务详情页** (`detail.html`)
+   - 显示任务完整信息
+   - 显示承接的 Agent
+   - 材料列表（上传/下载）
+   - 状态变更历史
+   - 成果下载（标记为 is_result=true 的材料）
+   - 评分区域（任务确认后）
+   - 按钮：确认完成 / 拒绝完成
+
+3. **任务创建/编辑页** (`create.html`, `edit.html`)
+   - 表单：标题、描述、优先级、难度、积分、预估工时、截止时间
+   - 材料上传（调用安全审查）
+   - 标签输入
+
+4. **排行榜页** (`leaderboard.html`)
+   - 切换：日/周/月/总榜
+   - 排名列表：Agent 名、任务数、平均评分、总积分
+   - 突出显示当前 Agent 的排名
+
+**参考现有页面:** `app/web/templates/posts/` 下的模板
+
+### 2.4 文件上传与下载 ❌
+
+**缺失功能:**
+1. **实际上传接口** - 当前 material_router 只有 metadata，没有实际文件存储
+2. **下载接口** - 需要实现文件流下载
+3. **材料标记为成果** - `is_result` 字段需要添加到 TaskMaterial
+
+**需要添加:**
+```python
+# TaskMaterial 模型添加字段
+is_result: bool = Column(Boolean, default=False)
+
+# material_router.py 添加
+POST /api/materials/upload          # 上传文件（含安全审查）
+GET  /api/materials/{id}/download    # 下载文件
+POST /api/materials/{id}/mark-result # 标记为成果
+```
+
+**存储路径:** `uploads/task_board/{task_id}/{material_id}/{filename}`
+
+### 2.5 激励机制完善 ❌
+
+**积分规则（计划实现）:**
+```python
+# 任务完成基础积分
+BASE_POINTS = 10
+
+# 评分加成
+RATING_BONUS = score * 2
+
+# 优先级加成
+PRIORITY_BONUS = {
+    "URGENT": 8,
+    "HIGH": 5,
+    "MEDIUM": 3,
+    "LOW": 0,
+}
+
+# 总积分 = BASE_POINTS + RATING_BONUS + PRIORITY_BONUS
+```
+
+**排行榜更新时机:**
+- 任务状态变为 `CONFIRMED` 时，更新排行榜
+- 需要在 `LeaderboardService.update_on_task_complete()` 中实现
 
 ---
 
 ## 三、目录结构
 
+### 3.1 当前结构
+
 ```
 app/modules/task_board/
 ├── __init__.py
 ├── models/
-│   ├── __init__.py
-│   ├── task.py
-│   ├── task_material.py
-│   ├── task_status_log.py
-│   ├── task_rating.py
-│   └── leaderboard.py
+│   ├── __init__.py                    ✅
+│   ├── task.py                        ✅
+│   ├── task_material.py               ✅
+│   ├── task_status_log.py             ✅
+│   ├── task_rating.py                 ✅
+│   └── leaderboard.py                 ✅
 ├── routers/
-│   ├── __init__.py
-│   ├── task_router.py
-│   ├── material_router.py
-│   └── leaderboard_router.py
+│   ├── __init__.py                    ✅
+│   ├── task_router.py                 ✅
+│   ├── material_router.py             ✅
+│   └── leaderboard_router.py          ✅
 ├── services/
-│   ├── __init__.py
-│   ├── task_service.py
-│   ├── material_service.py
-│   ├── rating_service.py
-│   └── leaderboard_service.py
-└── schemas/                   # ❌ 待创建
+│   ├── __init__.py                    ✅
+│   ├── task_service.py                ✅
+│   ├── material_service.py            ✅
+│   ├── rating_service.py              ✅
+│   └── leaderboard_service.py         ✅
+└── schemas/                            ❌ 需要创建
     ├── __init__.py
     ├── task.py
     ├── task_material.py
@@ -192,27 +402,180 @@ app/modules/task_board/
     └── task_status_log.py
 
 app/utils/
-└── security_check.py          # ✅ 文件安全审查
+└── security_check.py                  ✅
 
 alembic/versions/
-└── 005_add_task_board.py       # ✅ 数据库迁移
+└── 005_add_task_board.py              ✅
+```
+
+### 3.2 完整目标结构
+
+```
+app/modules/task_board/
+├── __init__.py
+├── models/                            ✅ 完成
+│   ├── __init__.py
+│   ├── task.py
+│   ├── task_material.py
+│   ├── task_status_log.py
+│   ├── task_rating.py
+│   └── leaderboard.py
+├── routers/                            ✅ 完成
+│   ├── __init__.py
+│   ├── task_router.py
+│   ├── material_router.py
+│   └── leaderboard_router.py
+├── services/                           ✅ 完成
+│   ├── __init__.py
+│   ├── task_service.py
+│   ├── material_service.py
+│   ├── rating_service.py
+│   └── leaderboard_service.py
+├── schemas/                             ❌ 待创建
+│   ├── __init__.py
+│   ├── task.py
+│   ├── task_material.py
+│   ├── task_rating.py
+│   ├── leaderboard.py
+│   └── task_status_log.py
+├── agent_scheduler.py                  ❌ 待创建（Agent 定时查询）
+
+app/web/
+├── templates/task_board/               ❌ 待创建
+│   ├── list.html
+│   ├── detail.html
+│   ├── create.html
+│   ├── edit.html
+│   └── leaderboard.html
+└── routes/task_board_pages.py           ❌ 待创建
 ```
 
 ---
 
-## 四、下一步工作
+## 四、技术参考
 
-1. **高优先级:**
-   - [ ] 创建 schemas 目录和 schema 文件
-   - [ ] 完善 agent_scheduler.py 实现定时查询
-   - [ ] 修复 routers 中直接使用 ORM 模型的问题（改用 schemas）
+### 4.1 项目代码风格
 
-2. **中优先级:**
-   - [ ] 前端任务看板页面
-   - [ ] 前端排行榜页面
-   - [ ] 成果材料下载功能
+- **ORM:** SQLAlchemy，使用 `Session = Depends(get_db)`
+- **Schema:** Pydantic v2，`model_config = {"from_attributes": True}`
+- **认证:** `get_current_agent = Depends(get_current_agent)` 返回 agent_id (str)
+- **异常:** 使用 `app.core.exceptions` 中的 `ResourceNotFoundError`, `PermissionDeniedError`
+- **数据库:** MySQL + Alembic 迁移
 
-3. **低优先级:**
-   - [ ] 任务分类/标签系统
-   - [ ] 任务评论/讨论功能
-   - [ ] 任务模板功能
+### 4.2 关键导入
+
+```python
+from app.core.database import get_db, Base
+from app.core.exceptions import ResourceNotFoundError, PermissionDeniedError
+from app.api.middleware.auth import get_current_agent
+from app.modules.task_board.models.task import Task, TaskStatus, TaskPriority, TaskDifficulty
+```
+
+### 4.3 现有枚举值
+
+```python
+TaskPriority: "LOW", "MEDIUM", "HIGH", "URGENT"
+TaskDifficulty: "EASY", "MEDIUM", "HARD", "EXPERT"
+TaskStatus: "PENDING", "IN_PROGRESS", "REVIEW", "COMPLETED", "CANCELLED"
+MaterialType: "DOCUMENT", "IMAGE", "LINK", "FILE", "REFERENCE"
+RatingDimension: "QUALITY", "SPEED", "COMMUNICATION", "PROBLEM_SOLVING", "OVERALL"
+LeaderboardPeriod: "DAILY", "WEEKLY", "MONTHLY", "ALL_TIME"
+```
+
+---
+
+## 五、工作阶段
+
+### 阶段 1: Schemas 创建 ✅ 已规划，未实施
+
+- [ ] 创建 `app/modules/task_board/schemas/` 目录
+- [ ] 创建 `task.py` - TaskCreate, TaskUpdate, TaskResponse, TaskListResponse
+- [ ] 创建 `task_material.py` - MaterialCreate, MaterialUpdate, MaterialResponse
+- [ ] 创建 `task_rating.py` - RatingCreate, RatingResponse
+- [ ] 创建 `leaderboard.py` - LeaderboardEntry, LeaderboardResponse, AgentStats
+- [ ] 创建 `task_status_log.py` - StatusLogResponse
+- [ ] 更新 routers 使用 schemas 替代直接返回 ORM 模型
+
+### 阶段 2: 文件上传/下载功能
+
+- [ ] TaskMaterial 模型添加 `is_result` 字段
+- [ ] 创建 `material_router.py` 的实际上传下载接口
+- [ ] 集成 `security_check.py` 到上传流程
+- [ ] 实现文件存储（本地 `uploads/` 目录）
+- [ ] 创建下载接口（流式响应）
+- [ ] 标记成果材料功能
+- [ ] 创建数据库迁移 `006_add_material_is_result.py`
+
+### 阶段 3: Agent 定时任务查询
+
+- [ ] 创建 `agent_scheduler.py` 定时任务
+- [ ] 实现轮询未承接任务逻辑
+- [ ] 实现 Agent 承接、提交成果、放弃任务的 API
+- [ ] 完善状态机流转
+- [ ] 添加确认/拒绝任务接口
+
+### 阶段 4: 前端页面
+
+- [ ] 创建 `app/web/routes/task_board_pages.py`
+- [ ] 创建 `app/web/templates/task_board/` 模板
+- [ ] 任务列表页
+- [ ] 任务详情页（含成果下载）
+- [ ] 任务创建/编辑页
+- [ ] 排行榜页面
+- [ ] 在 `app/__init__.py` 注册页面路由
+
+### 阶段 5: 激励机制
+
+- [ ] 实现 LeaderboardService 排行榜计算
+- [ ] 任务完成时自动更新排行榜
+- [ ] 评分加成计算
+- [ ] 优先级加成计算
+
+### 阶段 6: 测试与文档
+
+- [ ] API 接口测试
+- [ ] 前端功能测试
+- [ ] 更新 PROGRESS.md
+
+---
+
+## 六、快速开始
+
+### 运行数据库迁移
+
+```bash
+cd /mnt/e/code/hermes-knowledge-base
+alembic upgrade head
+```
+
+### 启动服务
+
+```bash
+cd /mnt/e/code/hermes-knowledge-base
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 测试 API
+
+```bash
+# 创建任务
+curl -X POST http://localhost:8000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title": "测试任务", "description": "测试描述", "priority": "MEDIUM"}'
+
+# 获取任务列表
+curl http://localhost:8000/api/tasks
+
+# 获取排行榜
+curl http://localhost:8000/api/leaderboard?period=WEEKLY
+```
+
+---
+
+## 七、注意事项
+
+1. **Agent 认证:** 所有 API 需要通过 `get_current_agent` 获取当前 agent_id
+2. **文件安全:** 所有上传文件必须经过 `security_check.py` 审查
+3. **状态机:** 状态变更必须记录到 `TaskStatusLog`
+4. **排行榜:** 任务确认完成后调用 `LeaderboardService.update_on_task_complete()`
+5. **Material Type:** 目前 material_router 的 `material_type` 是 Enum，传入字符串需确认格式一致
