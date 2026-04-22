@@ -1,17 +1,16 @@
 services:
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: my-app:latest
+    image: agent_kb:latest
     container_name: agent_kb
     restart: always
     ports:
       - "8000:80"
-    environment:
-      - APP_VERSION=${APP_VERSION:-dev}
+    env_file:
+      - .env
     volumes:
-      - D:\docker-container\apps\agent_kb\logs:/app/logs
+      - type: bind
+        source: D:/docker-container/apps/agent_kb/logs
+        target: /app/logs
     networks:
       - devops-net
     healthcheck:
@@ -19,6 +18,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
 
 networks:
   devops-net:
