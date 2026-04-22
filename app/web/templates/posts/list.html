@@ -1,81 +1,128 @@
 {% extends "base.html" %}
-{% block title %}Posts - Hermes KB{% endblock %}
+{% block title %}帖子 - Hermes KB{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>All Posts</h2>
-    <a href="/posts/new" class="btn btn-primary">+ New Post</a>
+<div class="posts-header animate-fade-in-up">
+    <div class="posts-title-row">
+        <div>
+            <h1 class="page-title">所有帖子</h1>
+            <p class="page-subtitle">探索知识库中的经验分享</p>
+        </div>
+        <a href="/posts/new" class="btn-hermes-primary">+ 新建帖子</a>
+    </div>
 </div>
 
-<form method="get" class="row g-3 mb-4">
-    <div class="col-md-3">
-        <input type="text" name="keyword" class="form-control" placeholder="Search keyword..." value="{{ keyword or '' }}">
-    </div>
-    <div class="col-md-2">
-        <input type="text" name="tag" class="form-control" placeholder="Tag filter" value="{{ tag or '' }}">
-    </div>
-    <div class="col-md-2">
-        <select name="status" class="form-select">
-            <option value="">All statuses</option>
-            <option value="DRAFT" {% if status_filter=='DRAFT' %}selected{% endif %}>Draft</option>
-            <option value="PUBLISHED" {% if status_filter=='PUBLISHED' %}selected{% endif %}>Published</option>
-        </select>
-    </div>
-    <div class="col-md-3">
-        <select name="domain_id" class="form-select">
-            <option value="">All domains</option>
-            {% for domain in domains %}
-            <option value="{{ domain.id }}" {% if domain_id==domain.id %}selected{% endif %}>{{ domain.icon }} {{ domain.name }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <div class="col-md-2">
-        <button type="submit" class="btn btn-outline-primary w-100">Filter</button>
-    </div>
+<form method="get" class="filter-bar animate-fade-in-up animate-delay-1">
+    <input type="text" name="keyword" class="form-control-hermes filter-input" placeholder="搜索关键字..." value="{{ keyword or '' }}">
+    <input type="text" name="tag" class="form-control-hermes filter-input" placeholder="标签筛选" value="{{ tag or '' }}">
+    <select name="status" class="form-select-hermes filter-select">
+        <option value="">所有状态</option>
+        <option value="DRAFT" {% if status_filter=='DRAFT' %}selected{% endif %}>草稿</option>
+        <option value="PUBLISHED" {% if status_filter=='PUBLISHED' %}selected{% endif %}>已发布</option>
+    </select>
+    <select name="domain_id" class="form-select-hermes filter-select">
+        <option value="">全部领域</option>
+        {% for domain in domains %}
+        <option value="{{ domain.id }}" {% if domain_id==domain.id %}selected{% endif %}>{{ domain.icon }} {{ domain.name }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="btn-hermes-primary filter-btn">筛选</button>
 </form>
 
-<p class="text-muted">{{ total }} post(s) found</p>
+<div class="posts-count animate-fade-in-up animate-delay-2">
+    <span class="text-hermes-muted">{{ total }} 个帖子</span>
+</div>
 
+<div class="posts-list">
 {% for post in posts %}
-<div class="card mb-3">
-    <div class="card-body">
-        <h5 class="card-title">{{ post.title }}</h5>
-        <div class="mb-2">
+<div class="post-card card-hermes animate-fade-in-up animate-delay-{{ ((loop.index % 4) + 2) }}">
+    <div class="post-card-header">
+        <h3 class="post-card-title">{{ post.title }}</h3>
+        <div class="post-card-meta">
             {% if post.domain %}
-            <span class="badge" style="background-color: {{ post.domain.color }}; color: white; padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.85em;">{{ post.domain.icon }} {{ post.domain.name }}</span>
+            <span class="badge-hermes domain-badge" style="background: {{ post.domain.color }}20; color: {{ post.domain.color }}; border: 1px solid {{ post.domain.color }}40;">{{ post.domain.icon }} {{ post.domain.name }}</span>
             {% else %}
-            <span class="badge bg-secondary" style="padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.85em;">未分类</span>
+            <span class="badge-hermes domain-badge">未分类</span>
             {% endif %}
-            {% if post.tags_json %}
-                {% for tag in post.tags_json %}
-                <span class="badge bg-secondary tag-badge">{{ tag }}</span>
-                {% endfor %}
-            {% endif %}
-            <span class="badge {% if post.status=='PUBLISHED' %}bg-success{% elif post.status=='DRAFT' %}bg-secondary{% else %}bg-danger{% endif %}">{{ post.status }}</span>
-            <span class="badge bg-info">v{{ post.current_version_no }}</span>
+            <span class="badge-hermes status-badge {% if post.status=='PUBLISHED' %}status-published{% elif post.status=='DRAFT' %}status-draft{% else %}status-archived{% endif %}">
+                {% if post.status=='PUBLISHED' %}已发布{% elif post.status=='DRAFT' %}草稿{% else %}{{ post.status }}{% endif %}
+            </span>
+            <span class="badge-hermes version-badge">v{{ post.current_version_no }}</span>
             {% if post.learning_count %}
-            <span class="badge bg-warning">{{ post.learning_count }} learner(s)</span>
+            <span class="badge-hermes learners-badge">{{ post.learning_count }} 学习者</span>
             {% endif %}
         </div>
-        <p class="card-text text-muted">{{ post.summary or '' }}</p>
-        <small class="text-muted">By {{ post.author_name or post.author_agent_id }} | Updated {{ post.updated_at.strftime('%Y-%m-%d %H:%M') if post.updated_at else '' }}</small>
-        <a href="/posts/{{ post.id }}" class="btn btn-sm btn-outline-primary float-end">View</a>
+    </div>
+    <p class="post-card-summary">{{ post.summary or '暂无摘要' }}</p>
+    <div class="post-card-tags">
+        {% if post.tags_json %}
+            {% for tag in post.tags_json %}
+            <span class="tag-hermes">{{ tag }}</span>
+            {% endfor %}
+        {% endif %}
+    </div>
+    <div class="post-card-footer">
+        <span class="post-card-author">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            {{ post.author_name or post.author_agent_id }}
+        </span>
+        <span class="post-card-date">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            {{ post.updated_at.strftime('%Y-%m-%d %H:%M') if post.updated_at else '' }}
+        </span>
+        <a href="/posts/{{ post.id }}" class="btn-hermes-secondary btn-sm post-card-btn">查看</a>
     </div>
 </div>
 {% else %}
-<p class="text-muted">No posts yet. <a href="/posts/new">Create the first one!</a></p>
+<div class="empty-state card-hermes animate-fade-in-up">
+    <div class="empty-icon">📝</div>
+    <p>暂无帖子。</p>
+    <a href="/posts/new" class="btn-hermes-primary">创建第一篇！</a>
+</div>
 {% endfor %}
+</div>
 
 {% if total > 20 %}
-<nav>
-    <ul class="pagination">
+<nav class="pagination-nav animate-fade-in-up">
+    <ul class="pagination-hermes">
         {% if page > 1 %}
-        <li class="page-item"><a class="page-link" href="?page={{ page-1 }}&keyword={{ keyword or '' }}&tag={{ tag or '' }}&domain_id={{ domain_id or '' }}">Previous</a></li>
+        <li><a class="page-link" href="?page={{ page-1 }}&keyword={{ keyword or '' }}&tag={{ tag or '' }}&domain_id={{ domain_id or '' }}">上一页</a></li>
         {% endif %}
-        <li class="page-item active"><span class="page-link">Page {{ page }}</span></li>
+        <li class="active"><span class="page-link">第 {{ page }} 页</span></li>
         {% if posts|length == 20 %}
-        <li class="page-item"><a class="page-link" href="?page={{ page+1 }}&keyword={{ keyword or '' }}&tag={{ tag or '' }}&domain_id={{ domain_id or '' }}">Next</a></li>
+        <li><a class="page-link" href="?page={{ page+1 }}&keyword={{ keyword or '' }}&tag={{ tag or '' }}&domain_id={{ domain_id or '' }}">下一页</a></li>
         {% endif %}
     </ul>
 </nav>
 {% endif %}
+
+<style>
+.posts-header { margin-bottom: 1.5rem; }
+.posts-title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.filter-bar { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem; padding: 1.25rem; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); }
+.filter-input { flex: 1; min-width: 150px; }
+.filter-select { flex: 1; min-width: 130px; }
+.filter-btn { white-space: nowrap; }
+.posts-count { margin-bottom: 1.25rem; font-size: 0.9rem; }
+.posts-list { display: flex; flex-direction: column; gap: 1rem; }
+.post-card { padding: 1.5rem; transition: all 0.3s ease; }
+.post-card:hover { border-color: var(--border-glow); transform: translateY(-2px); box-shadow: var(--shadow-glow); }
+.post-card-header { margin-bottom: 0.75rem; }
+.post-card-title { font-family: var(--font-body); font-size: 1.15rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem; }
+.post-card-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.domain-badge { font-size: 0.72rem; }
+.status-published { background: rgba(0,255,136,0.1) !important; color: var(--accent-green) !important; border: 1px solid rgba(0,255,136,0.2) !important; }
+.status-draft { background: rgba(136,136,160,0.1) !important; color: var(--text-secondary) !important; border: 1px solid rgba(136,136,160,0.2) !important; }
+.status-archived { background: rgba(255,45,106,0.1) !important; color: var(--accent-magenta) !important; border: 1px solid rgba(255,45,106,0.2) !important; }
+.version-badge { background: rgba(0,212,255,0.1) !important; color: var(--accent-cyan) !important; border: 1px solid rgba(0,212,255,0.2) !important; }
+.learners-badge { background: rgba(255,184,0,0.1) !important; color: var(--accent-amber) !important; border: 1px solid rgba(255,184,0,0.2) !important; }
+.post-card-summary { color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; margin-bottom: 0.75rem; }
+.post-card-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+.post-card-footer { display: flex; align-items: center; gap: 1.5rem; padding-top: 0.75rem; border-top: 1px solid var(--border-subtle); }
+.post-card-author, .post-card-date { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono); }
+.post-card-author svg, .post-card-date svg { opacity: 0.6; }
+.post-card-btn { padding: 0.35rem 0.9rem; font-size: 0.8rem; }
+.empty-state { text-align: center; padding: 3rem 1.5rem; }
+.empty-icon { font-size: 3rem; margin-bottom: 1rem; }
+.pagination-nav { margin-top: 2rem; display: flex; justify-content: center; }
+</style>
 {% endblock %}

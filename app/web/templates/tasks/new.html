@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+{% block title %}创建任务 - Hermes KB{% endblock %}
+{% block content %}
+{% set created_task_id = request.query_params.get('task_id') %}
+<div class="task-form-shell">
+    <section class="task-form-hero card-hermes animate-fade-in">
+        <div>
+            <p class="eyebrow">Task Creation</p>
+            <h2 class="mb-2">创建新任务</h2>
+            <p class="hero-copy">将任务拆成清晰的目标、交付信息和执行约束，避免一次性塞入太多字段造成视觉负担。</p>
+        </div>
+        <div class="hero-aside">
+            <span class="hero-pill">管理员入口</span>
+            <span class="hero-pill hero-pill-muted">完成创建后可继续上传任务材料</span>
+        </div>
+    </section>
+
+    {% if created_task_id %}
+    <section class="card-hermes success-banner animate-fade-in">
+        <div>
+            <strong>任务已创建</strong>
+            <p class="mb-0">当前任务 ID：<code>{{ created_task_id }}</code>。现在可以继续为它上传材料。</p>
+        </div>
+        <a href="/tasks/{{ created_task_id }}" class="btn btn-hermes-primary">查看任务详情</a>
+    </section>
+    {% endif %}
+
+    <div class="task-form-grid">
+        <form method="post" action="/tasks/new" class="task-form-main card-hermes animate-fade-in">
+            <section class="form-panel">
+                <div class="panel-head">
+                    <h3>任务内容</h3>
+                    <p>先定义要做什么，再补充上下文。</p>
+                </div>
+                <div class="field-stack">
+                    <div>
+                        <label class="form-label-hermes">标题 *</label>
+                        <input type="text" name="title" class="form-control-hermes field-lg" placeholder="例如：重构任务看板详情页" required>
+                    </div>
+                    <div>
+                        <label class="form-label-hermes">描述</label>
+                        <textarea name="description" class="form-control-hermes field-textarea" rows="7" placeholder="描述目标、背景、预期结果，以及交付标准。"></textarea>
+                    </div>
+                    <div>
+                        <label class="form-label-hermes">标签</label>
+                        <input type="text" name="tags" class="form-control-hermes" placeholder="ui, backend, urgent">
+                        <p class="field-hint">使用逗号分隔，方便后续筛选和搜索。</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-panel">
+                <div class="panel-head">
+                    <h3>执行设置</h3>
+                    <p>把优先级、难度、负责人和时间约束集中在一组。</p>
+                </div>
+                <div class="panel-grid">
+                    <div>
+                        <label class="form-label-hermes">优先级</label>
+                        <select name="priority" class="form-select-hermes">
+                            {% for p in priorities %}
+                            <option value="{{ p.value }}" {% if p.value=='MEDIUM' %}selected{% endif %}>
+                                {% if p.value=='LOW' %}低
+                                {% elif p.value=='MEDIUM' %}中
+                                {% elif p.value=='HIGH' %}高
+                                {% elif p.value=='URGENT' %}紧急
+                                {% else %}{{ p.value }}{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label-hermes">难度</label>
+                        <select name="difficulty" class="form-select-hermes">
+                            <option value="">-- 选择难度 --</option>
+                            {% for d in difficulties %}
+                            <option value="{{ d.value }}">
+                                {% if d.value=='EASY' %}简单
+                                {% elif d.value=='MEDIUM' %}中等
+                                {% elif d.value=='HARD' %}困难
+                                {% elif d.value=='EXPERT' %}专家
+                                {% else %}{{ d.value }}{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="panel-grid-wide">
+                        <label class="form-label-hermes">指派给智能体</label>
+                        <select name="assigned_to_agent_code" class="form-select-hermes">
+                            <option value="">-- 未指派 --</option>
+                            {% for agent in agents %}
+                            <option value="{{ agent.agent_code }}">{{ agent.name }} ({{ agent.agent_code }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label-hermes">积分</label>
+                        <input type="number" name="points" class="form-control-hermes" value="0" min="0">
+                    </div>
+                    <div>
+                        <label class="form-label-hermes">预计小时</label>
+                        <input type="number" name="estimated_hours" class="form-control-hermes" value="0" min="0">
+                    </div>
+                    <div>
+                        <label class="form-label-hermes">截止日期</label>
+                        <input type="date" name="due_date" class="form-control-hermes">
+                    </div>
+                </div>
+            </section>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-hermes-primary">创建任务</button>
+                <a href="/tasks" class="btn-hermes-secondary">返回列表</a>
+            </div>
+        </form>
+
+        <aside class="task-form-side">
+            <section class="card-hermes helper-card animate-fade-in">
+                <h3>填写建议</h3>
+                <ul class="helper-list">
+                    <li>标题直接写动作和对象，避免模糊描述。</li>
+                    <li>描述里说明验收标准，能减少返工。</li>
+                    <li>优先级代表紧迫性，难度代表实现复杂度。</li>
+                    <li>如果暂时没人负责，先保持“未指派”。</li>
+                </ul>
+            </section>
+
+            <section class="card-hermes upload-card animate-fade-in">
+                <div class="panel-head">
+                    <h3>上传材料</h3>
+                    <p>材料上传依赖任务 ID，所以需要先成功创建任务。</p>
+                </div>
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <input type="hidden" name="task_id" id="uploadTaskId" value="{{ created_task_id or '' }}">
+                    <input type="hidden" name="title" id="materialTitle" value="任务材料">
+                    <input type="hidden" name="material_type" value="FILE">
+                    <div class="field-stack">
+                        <div>
+                            <label class="form-label-hermes">选择文件</label>
+                            <input type="file" name="file" class="form-control-hermes" id="materialFile">
+                        </div>
+                        <button type="button" class="btn-hermes-info upload-btn" onclick="uploadMaterial()">上传材料</button>
+                        <div id="uploadStatus" class="upload-status"></div>
+                    </div>
+                </form>
+            </section>
+        </aside>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .task-form-shell {
+        display: grid;
+        gap: 1.5rem;
+    }
+
+    .task-form-hero,
+    .task-form-main,
+    .helper-card,
+    .upload-card,
+    .success-banner {
+        border: 1px solid rgba(122, 157, 217, 0.18);
+        background:
+            radial-gradient(circle at top right, rgba(73, 140, 255, 0.16), transparent 24%),
+            linear-gradient(180deg, rgba(14, 24, 40, 0.96), rgba(8, 14, 24, 0.98));
+        box-shadow: 0 26px 56px rgba(4, 9, 20, 0.34);
+    }
+
+    .task-form-hero,
+    .success-banner {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+
+    .eyebrow {
+        margin: 0 0 0.4rem;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-size: 0.72rem;
+        color: rgba(143, 184, 255, 0.72);
+    }
+
+    .hero-copy,
+    .panel-head p,
+    .field-hint {
+        margin: 0;
+        color: rgba(212, 225, 245, 0.72);
+    }
+
+    .hero-aside {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        justify-content: flex-end;
+    }
+
+    .hero-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.55rem 0.9rem;
+        border-radius: 999px;
+        color: #eff7ff;
+        background: rgba(20, 104, 174, 0.24);
+        border: 1px solid rgba(118, 198, 255, 0.22);
+    }
+
+    .hero-pill-muted {
+        background: rgba(225, 236, 255, 0.08);
+        border-color: rgba(202, 218, 247, 0.14);
+        color: rgba(226, 236, 251, 0.84);
+    }
+
+    .task-form-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.9fr);
+        gap: 1.5rem;
+        align-items: start;
+    }
+
+    .task-form-main,
+    .task-form-side {
+        display: grid;
+        gap: 1.2rem;
+    }
+
+    .form-panel {
+        display: grid;
+        gap: 1rem;
+        padding-bottom: 0.25rem;
+        border-bottom: 1px solid rgba(132, 158, 204, 0.12);
+    }
+
+    .form-panel:last-of-type {
+        border-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    .panel-head h3,
+    .helper-card h3 {
+        margin: 0 0 0.25rem;
+        font-size: 1.1rem;
+    }
+
+    .field-stack {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .panel-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+    }
+
+    .panel-grid-wide {
+        grid-column: 1 / -1;
+    }
+
+    .field-lg {
+        min-height: 3.25rem;
+        font-size: 1.05rem;
+    }
+
+    .field-textarea {
+        min-height: 180px;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 0.8rem;
+        flex-wrap: wrap;
+        padding-top: 0.5rem;
+    }
+
+    .helper-list {
+        margin: 0;
+        padding-left: 1.1rem;
+        color: rgba(227, 235, 248, 0.84);
+    }
+
+    .helper-list li + li {
+        margin-top: 0.55rem;
+    }
+
+    .upload-btn {
+        width: 100%;
+    }
+
+    .upload-status {
+        min-height: 1.5rem;
+        color: rgba(214, 227, 247, 0.82);
+    }
+
+    .animate-fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
+        opacity: 0;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 991px) {
+        .task-form-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .task-form-hero,
+        .success-banner {
+            flex-direction: column;
+        }
+
+        .panel-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function uploadMaterial() {
+    const taskId = document.getElementById('uploadTaskId').value;
+    const fileInput = document.getElementById('materialFile');
+    const statusDiv = document.getElementById('uploadStatus');
+
+    if (!taskId) {
+        statusDiv.innerHTML = '<span class="text-danger">请先创建任务，再上传材料。</span>';
+        return;
+    }
+    if (!fileInput.files.length) {
+        statusDiv.innerHTML = '<span class="text-danger">请选择文件。</span>';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('task_id', taskId);
+    formData.append('title', document.getElementById('materialTitle').value || '任务材料');
+    formData.append('material_type', 'FILE');
+    formData.append('file', fileInput.files[0]);
+
+    statusDiv.innerHTML = '<span class="text-info">上传中...</span>';
+
+    fetch('/materials/upload', {
+        method: 'POST',
+        body: formData,
+        headers: {'Authorization': 'Bearer ' + (document.cookie.match(/admin_token=([^;]+)/) ? document.cookie.match(/admin_token=([^;]+)/)[1] : '')}
+    })
+    .then(r => r.json())
+    .then(data => {
+        statusDiv.innerHTML = '<span class="text-success">上传成功：' + (data.title || data.file_path) + '</span>';
+        fileInput.value = '';
+    })
+    .catch(e => {
+        statusDiv.innerHTML = '<span class="text-danger">上传失败：' + e.message + '</span>';
+    });
+}
+</script>
+{% endblock %}

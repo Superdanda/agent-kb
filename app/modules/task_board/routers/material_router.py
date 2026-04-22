@@ -1,15 +1,13 @@
-import uuid
-from datetime import datetime, timezone
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.api.middleware.auth import get_current_agent
-from app.modules.task_board.models.task_material import TaskMaterial, MaterialType
-from app.modules.task_board.models.task import Task
-from app.modules.task_board.schemas.task_material import TaskMaterialCreate, TaskMaterialUpdate, TaskMaterialResponse
+from app.modules.task_board.models.task_material import MaterialType
+from app.modules.task_board.schemas.task_material import TaskMaterialResponse
+from app.modules.task_board.services.material_service import MaterialService
 
 router = APIRouter(prefix="/materials", tags=["task_materials"])
 
@@ -26,14 +24,7 @@ def create_material(
     agent_id: str = Depends(get_current_agent),
     db: Session = Depends(get_db),
 ):
-    # Verify task exists
-    task = db.query(Task).filter(Task.id == task_id).first()
-    if not task:
-        from app.core.exceptions import ResourceNotFoundError
-        raise ResourceNotFoundError(f"Task {task_id} not found")
-    
-    material = TaskMaterial(
-        id=str(uuid.uuid4()),
+    material = MaterialService(db).create_material(
         task_id=task_id,
         material_type=material_type,
         title=title,
@@ -42,10 +33,6 @@ def create_material(
         file_path=file_path,
         order_index=order_index,
     )
-    db.add(material)
-    db.commit()
-    db.refresh(material)
-    
     return TaskMaterialResponse.model_validate(material)
 
 
@@ -55,10 +42,7 @@ def list_materials_by_task(
     agent_id: str = Depends(get_current_agent),
     db: Session = Depends(get_db),
 ):
-    materials = db.query(TaskMaterial).filter(
-        TaskMaterial.task_id == task_id
-    ).order_by(TaskMaterial.order_index).all()
-    
+    materials = MaterialService(db).get_materials_by_task(task_id)
     return [TaskMaterialResponse.model_validate(m) for m in materials]
 
 
@@ -68,11 +52,7 @@ def get_material(
     agent_id: str = Depends(get_current_agent),
     db: Session = Depends(get_db),
 ):
-    material = db.query(TaskMaterial).filter(TaskMaterial.id == material_id).first()
-    if not material:
-        from app.core.exceptions import ResourceNotFoundError
-        raise ResourceNotFoundError(f"Material {material_id} not found")
-    
+    material = MaterialService(db).get_material(material_id)
     return TaskMaterialResponse.model_validate(material)
 
 
@@ -87,26 +67,14 @@ def update_material(
     agent_id: str = Depends(get_current_agent),
     db: Session = Depends(get_db),
 ):
-    material = db.query(TaskMaterial).filter(TaskMaterial.id == material_id).first()
-    if not material:
-        from app.core.exceptions import ResourceNotFoundError
-        raise ResourceNotFoundError(f"Material {material_id} not found")
-    
-    if title is not None:
-        material.title = title
-    if content is not None:
-        material.content = content
-    if url is not None:
-        material.url = url
-    if file_path is not None:
-        material.file_path = file_path
-    if order_index is not None:
-        material.order_index = order_index
-    
-    material.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(material)
-    
+    material = MaterialService(db).update_material(
+        material_id=material_id,
+        title=title,
+        content=content,
+        url=url,
+        file_path=file_path,
+        order_index=order_index,
+    )
     return TaskMaterialResponse.model_validate(material)
 
 
@@ -116,14 +84,7 @@ def delete_material(
     agent_id: str = Depends(get_current_agent),
     db: Session = Depends(get_db),
 ):
-    material = db.query(TaskMaterial).filter(TaskMaterial.id == material_id).first()
-    if not material:
-        from app.core.exceptions import ResourceNotFoundError
-        raise ResourceNotFoundError(f"Material {material_id} not found")
-    
-    db.delete(material)
-    db.commit()
-    
+    MaterialService(db).delete_material(material_id)
     return None
 
 
@@ -134,27 +95,24 @@ def reorder_materials(
     agent_id: str = Depends(get_current_agent),
     db: Session = Depends(get_db),
 ):
-    # Verify task exists
-    task = db.query(Task).filter(Task.id == task_id).first()
-    if not task:
-        from app.core.exceptions import ResourceNotFoundError
-        raise ResourceNotFoundError(f"Task {task_id} not found")
-    
-    # Update order for each material
-    for index, material_id in enumerate(material_ids):
-        material = db.query(TaskMaterial).filter(
-            TaskMaterial.id == material_id,
-            TaskMaterial.task_id == task_id,
-        ).first()
-        if material:
-            material.order_index = index
-            material.updated_at = datetime.now(timezone.utc)
-    
-    db.commit()
-    
-    # Return updated materials
-    materials = db.query(TaskMaterial).filter(
-        TaskMaterial.task_id == task_id
-    ).order_by(TaskMaterial.order_index).all()
-    
+    materials = MaterialService(db).reorder_materials(task_id, material_ids)
     return [TaskMaterialResponse.model_validate(m) for m in materials]
+
+
+@router.post("/upload", status_code=status.HTTP_201_CREATED)
+def upload_material_file(
+    task_id: str = Form(...),
+    title: str = Form(...),
+    material_type: MaterialType = Form(MaterialType.FILE),
+    file: UploadFile = File(...),
+    agent_id: str = Depends(get_current_agent),
+    db: Session = Depends(get_db),
+):
+    """Upload a file as task material and store in MinIO."""
+    material = MaterialService(db).upload_file_material(
+        task_id=task_id,
+        title=title,
+        material_type=material_type,
+        file=file,
+    )
+    return TaskMaterialResponse.model_validate(material)

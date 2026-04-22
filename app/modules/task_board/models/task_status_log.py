@@ -13,7 +13,8 @@ class TaskStatusLog(Base):
 
     id = Column(CHAR(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     task_id = Column(CHAR(36), ForeignKey("tasks.id"), nullable=False, index=True)
-    agent_id = Column(CHAR(36), ForeignKey("agents.id"), nullable=False, index=True)
+    agent_id = Column(CHAR(36), ForeignKey("agents.id"), nullable=True, index=True)
+    admin_uuid = Column(CHAR(36), nullable=True, index=True)
     
     from_status = Column(String(32), nullable=True)
     to_status = Column(String(32), nullable=False)

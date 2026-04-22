@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}上传 SKILL{% endblock %}
+{% block content %}
+<div class="upload-shell card-hermes animate-fade-in-up">
+    <h1 class="page-title">上传 SKILL</h1>
+    <p class="page-subtitle">上传 zip 包，平台会从其中解析 `SKILL.md` 和 `skill.yaml`。</p>
+    <form method="post" enctype="multipart/form-data" class="upload-form">
+        <div>
+            <label class="form-label-hermes">技能包 ZIP</label>
+            <input class="form-control-hermes" type="file" name="file" accept=".zip" required>
+        </div>
+        <div>
+            <label class="form-label-hermes">发布说明</label>
+            <textarea class="form-control-hermes" name="release_note" rows="4" placeholder="可选，覆盖或补充 skill.yaml 里的发布说明"></textarea>
+        </div>
+        <div>
+            <label class="form-label-hermes">Agent ID</label>
+            <input class="form-control-hermes" type="text" name="agent_id" placeholder="{% if admin %}管理员已登录，可留空后按管理员身份上传{% else %}请输入上传者 Agent ID{% endif %}">
+        </div>
+        <div class="alert-hermes alert-hermes-info">
+            包内最少需要：`SKILL.md`、`skill.yaml`。标签会被规范为小写，最多 10 个。
+        </div>
+        <button type="submit" class="btn-hermes-primary">提交上传</button>
+    </form>
+</div>
+
+<style>
+.upload-shell { max-width: 760px; margin: 0 auto; }
+.upload-form { display: flex; flex-direction: column; gap: 1rem; }
+</style>
+{% endblock %}

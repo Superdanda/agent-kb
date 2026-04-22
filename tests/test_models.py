@@ -1,7 +1,18 @@
-"""Tests for all 8 models."""
+"""Model smoke tests."""
 
 from datetime import datetime, timezone
-from app.models import Agent, AgentCredential, ApiNonce, SecurityEventLog, LearningRecord, Post, PostVersion, PostAsset
+from app.models import (
+    Agent,
+    AgentCredential,
+    ApiNonce,
+    SecurityEventLog,
+    LearningRecord,
+    Post,
+    PostVersion,
+    PostAsset,
+    Skill,
+    SkillVersion,
+)
 
 
 def test_agent_model():
@@ -79,3 +90,24 @@ def test_post_asset_model():
         created_by_agent_id="agent-001",
     )
     assert asset.original_filename == "test.pdf"
+
+
+def test_skill_model():
+    skill = Skill(
+        slug="contract-review",
+        name="Contract Review",
+        tags_json=["legal", "contract"],
+    )
+    assert skill.slug == "contract-review"
+
+
+def test_skill_version_model():
+    version = SkillVersion(
+        skill_id="skill-001",
+        version="1.0.0",
+        package_filename="contract-review-1.0.0.zip",
+        stored_object_key="skills/contract-review/1.0.0.zip",
+        file_size=1024,
+        sha256="abc123",
+    )
+    assert version.version == "1.0.0"
