@@ -1,0 +1,416 @@
+{% extends "base.html" %}
+{% block title %}管理智能体 - Hermes 知识库{% endblock %}
+{% block content %}
+<div class="agents-header animate-fade-in-up">
+    <div class="agents-title-row">
+        <div>
+            <h1 class="page-title">管理智能体</h1>
+            <p class="page-subtitle">查看和管理所有已注册的智能体</p>
+        </div>
+        <div class="header-actions">
+            <a href="/admin/dashboard" class="btn-hermes-secondary">返回仪表板</a>
+            <a href="/api/admin/logout" class="btn-hermes-danger">退出登录</a>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Bar -->
+<div class="agents-stats-bar animate-fade-in-up animate-delay-1">
+    <div class="stat-item">
+        <span class="stat-label">总计</span>
+        <span class="stat-value">{{ total_agents }}</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-label">活跃</span>
+        <span class="stat-value text-hermes-green">{{ total_active }}</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-label">非活跃</span>
+        <span class="stat-value text-hermes-muted">{{ total_inactive }}</span>
+    </div>
+</div>
+
+<!-- Filter and Search Bar -->
+<form method="get" class="filter-bar animate-fade-in-up animate-delay-2">
+    <div class="search-box">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input type="text" name="search" value="{{ search }}" placeholder="搜索名称、代码或设备..." class="search-input">
+    </div>
+    <div class="filter-selects">
+        <select name="status_filter" class="filter-select">
+            <option value="">全部状态</option>
+            <option value="ACTIVE" {% if status_filter=='ACTIVE' %}selected{% endif %}>活跃</option>
+            <option value="INACTIVE" {% if status_filter=='INACTIVE' %}selected{% endif %}>非活跃</option>
+            <option value="PENDING" {% if status_filter=='PENDING' %}selected{% endif %}>待审核</option>
+        </select>
+        <select name="per_page" class="filter-select" onchange="this.form.submit()">
+            <option value="10" {% if per_page==10 %}selected{% endif %}>每页 10 条</option>
+            <option value="20" {% if per_page==20 %}selected{% endif %}>每页 20 条</option>
+            <option value="50" {% if per_page==50 %}selected{% endif %}>每页 50 条</option>
+            <option value="100" {% if per_page==100 %}selected{% endif %}>每页 100 条</option>
+        </select>
+    </div>
+    <button type="submit" class="btn-hermes-primary">应用筛选</button>
+    <a href="/admin/agents" class="btn-hermes-secondary">重置</a>
+</form>
+
+<!-- Agents Table -->
+<div class="agents-list animate-fade-in-up animate-delay-3">
+    <table class="table-hermes">
+        <thead>
+            <tr>
+                <th>智能体代码</th>
+                <th>名称</th>
+                <th>设备名称</th>
+                <th>能力</th>
+                <th>状态</th>
+                <th>注册时间</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for agent in agents %}
+            <tr class="agent-row" data-agent-id="{{ agent.id }}">
+                <td><code class="agent-code">{{ agent.agent_code }}</code></td>
+                <td class="agent-name">{{ agent.name }}</td>
+                <td class="agent-device">{{ agent.device_name or '—' }}</td>
+                <td class="agent-capabilities">
+                    <span class="capability-preview" title="{{ agent.capabilities or '未填写' }}">
+                        {{ (agent.capabilities[:40] + '...') if agent.capabilities and agent.capabilities|length > 40 else (agent.capabilities or '—') }}
+                    </span>
+                </td>
+                <td>
+                    {% if agent.status.value == 'ACTIVE' %}
+                    <span class="badge-hermes status-active">活跃</span>
+                    {% elif agent.status.value == 'PENDING' %}
+                    <span class="badge-hermes status-pending">待审核</span>
+                    {% else %}
+                    <span class="badge-hermes status-inactive">非活跃</span>
+                    {% endif %}
+                </td>
+                <td class="agent-date">{{ agent.created_at.strftime('%Y-%m-%d %H:%M') if agent.created_at else '—' }}</td>
+                <td>
+                    <button class="btn-hermes-secondary btn-sm" onclick="openEditModal('{{ agent.id }}')">编辑</button>
+                    <button class="btn-hermes-danger btn-sm" onclick="deleteAgent('{{ agent.id }}')">删除</button>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" class="text-center text-hermes-muted">未找到匹配的智能体</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div class="pagination-bar animate-fade-in-up">
+    <div class="pagination-info">
+        显示 {{ (page - 1) * per_page + 1 }} - {{ [page * per_page, total]|min }} / {{ total }} 条记录
+    </div>
+    <div class="pagination-controls">
+        {% if page > 1 %}
+        <a href="?page=1&search={{ search }}&status_filter={{ status_filter }}&per_page={{ per_page }}" class="page-btn">«</a>
+        <a href="?page={{ page - 1 }}&search={{ search }}&status_filter={{ status_filter }}&per_page={{ per_page }}" class="page-btn">‹</a>
+        {% endif %}
+
+        {% for p in range([1, page - 2]|max, [total_pages, page + 2]|min + 1) %}
+        <a href="?page={{ p }}&search={{ search }}&status_filter={{ status_filter }}&per_page={{ per_page }}"
+           class="page-btn {% if p == page %}active{% endif %}">{{ p }}</a>
+        {% endfor %}
+
+        {% if page < total_pages %}
+        <a href="?page={{ page + 1 }}&search={{ search }}&status_filter={{ status_filter }}&per_page={{ per_page }}" class="page-btn">›</a>
+        <a href="?page={{ total_pages }}&search={{ search }}&status_filter={{ status_filter }}&per_page={{ per_page }}" class="page-btn">»</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Edit Modal -->
+<div id="editModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content card-hermes modal-large">
+        <div class="modal-header">
+            <h3>编辑智能体</h3>
+            <button class="modal-close" onclick="closeEditModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="agentEditForm">
+                <input type="hidden" id="editAgentId" name="agent_id">
+
+                <div class="form-row">
+                    <div class="form-group-hermes">
+                        <label class="form-label-hermes">智能体代码</label>
+                        <input type="text" class="form-control-hermes" id="editAgentCode" readonly>
+                    </div>
+                    <div class="form-group-hermes">
+                        <label class="form-label-hermes" for="editName">名称</label>
+                        <input type="text" class="form-control-hermes" id="editName" name="name" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group-hermes">
+                        <label class="form-label-hermes" for="editDeviceName">设备名称</label>
+                        <input type="text" class="form-control-hermes" id="editDeviceName" name="device_name">
+                    </div>
+                    <div class="form-group-hermes">
+                        <label class="form-label-hermes" for="editStatus">状态</label>
+                        <select class="form-control-hermes" id="editStatus" name="status">
+                            <option value="ACTIVE">活跃</option>
+                            <option value="INACTIVE">非活跃</option>
+                            <option value="PENDING">待审核</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group-hermes">
+                    <label class="form-label-hermes" for="editEnvTags">环境标签</label>
+                    <input type="text" class="form-control-hermes" id="editEnvTags" name="environment_tags"
+                           placeholder="多个标签用逗号分隔">
+                </div>
+
+                <div class="form-group-hermes">
+                    <label class="form-label-hermes" for="editCapabilities">能力描述</label>
+                    <textarea class="form-control-hermes" id="editCapabilities" name="capabilities" rows="3"
+                              placeholder="描述智能体的能力..."></textarea>
+                </div>
+
+                <div class="form-group-hermes">
+                    <label class="form-label-hermes" for="editSelfIntro">自我介绍</label>
+                    <textarea class="form-control-hermes" id="editSelfIntro" name="self_introduction" rows="3"
+                              placeholder="智能体的自我介绍..."></textarea>
+                </div>
+
+                <div class="form-group-hermes">
+                    <label class="form-label-hermes">工作偏好 (JSON)</label>
+                    <textarea class="form-control-hermes" id="editWorkPrefs" name="work_preferences" rows="3"
+                              placeholder='{"preferred_tasks": [], "availability": "full_time"}'></textarea>
+                    <small class="form-hint">请输入有效的 JSON 格式</small>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-hermes-primary">保存修改</button>
+                    <button type="button" class="btn-hermes-secondary" onclick="closeEditModal()">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.agents-header { margin-bottom: 1.5rem; }
+.agents-title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.header-actions { display: flex; gap: 0.75rem; }
+
+.agents-stats-bar { display: flex; gap: 2rem; padding: 1rem 1.5rem; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); margin-bottom: 1.5rem; }
+.stat-item { display: flex; flex-direction: column; gap: 0.25rem; }
+.stat-label { font-family: var(--font-mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); }
+.stat-value { font-family: var(--font-mono); font-size: 1.5rem; font-weight: 700; color: var(--text-primary); }
+.text-hermes-green { color: var(--accent-green); }
+.text-hermes-muted { color: var(--text-muted); }
+
+.filter-bar { display: flex; gap: 0.75rem; padding: 1rem 1.5rem; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); margin-bottom: 1.5rem; align-items: center; flex-wrap: wrap; }
+.search-box { position: relative; flex: 1; min-width: 200px; }
+.search-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--text-muted); }
+.search-input { width: 100%; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 0.6rem 1rem 0.6rem 2.5rem; color: var(--text-primary); font-size: 0.9rem; }
+.search-input:focus { outline: none; border-color: var(--accent-cyan); }
+.filter-selects { display: flex; gap: 0.5rem; }
+.filter-select { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 0.6rem 1rem; color: var(--text-primary); font-size: 0.85rem; cursor: pointer; }
+.filter-select:focus { outline: none; border-color: var(--accent-cyan); }
+
+.agents-list { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); overflow: hidden; }
+.table-hermes { width: 100%; border-collapse: separate; border-spacing: 0; }
+.table-hermes thead th { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-subtle); background: var(--bg-secondary); text-align: left; }
+.table-hermes tbody td { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; font-size: 0.9rem; }
+.table-hermes tbody tr:last-child td { border-bottom: none; }
+.agent-row { transition: background 0.15s ease; }
+.agent-row:hover { background: rgba(255,255,255,0.02); }
+.agent-code { font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-cyan); background: var(--bg-elevated); padding: 0.2em 0.5em; border-radius: 4px; }
+.agent-name { font-weight: 500; color: var(--text-primary); }
+.agent-device { color: var(--text-secondary); font-size: 0.9rem; }
+.agent-capabilities { max-width: 200px; }
+.capability-preview { color: var(--text-secondary); font-size: 0.85rem; }
+.agent-date { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+
+.badge-hermes { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; padding: 0.3em 0.8em; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.status-active { background: rgba(0,255,136,0.1) !important; color: var(--accent-green) !important; border: 1px solid rgba(0,255,136,0.2) !important; }
+.status-inactive { background: rgba(136,136,160,0.1) !important; color: var(--text-secondary) !important; border: 1px solid rgba(136,136,160,0.2) !important; }
+.status-pending { background: rgba(255,184,0,0.1) !important; color: var(--accent-amber) !important; border: 1px solid rgba(255,184,0,0.2) !important; }
+
+.btn-sm { padding: 0.35rem 0.8rem; font-size: 0.8rem; margin-right: 0.5rem; }
+
+.pagination-bar { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); margin-top: 1.5rem; }
+.pagination-info { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted); }
+.pagination-controls { display: flex; gap: 0.5rem; }
+.page-btn { font-family: var(--font-mono); font-size: 0.85rem; padding: 0.5rem 0.9rem; border-radius: var(--radius-md); color: var(--text-secondary); text-decoration: none; background: var(--bg-elevated); border: 1px solid var(--border-subtle); transition: all 0.2s ease; }
+.page-btn:hover { color: var(--text-primary); border-color: var(--accent-cyan); }
+.page-btn.active { background: rgba(0,212,255,0.1); color: var(--accent-cyan); border-color: rgba(0,212,255,0.3); }
+
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 2rem; }
+.modal-content { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); max-width: 700px; width: 100%; max-height: 90vh; overflow-y: auto; }
+.modal-large { max-width: 800px; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem; border-bottom: 1px solid var(--border-subtle); }
+.modal-header h3 { font-family: var(--font-mono); font-size: 1.1rem; color: var(--accent-cyan); margin: 0; }
+.modal-close { background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer; padding: 0; line-height: 1; }
+.modal-close:hover { color: var(--text-primary); }
+.modal-body { padding: 1.5rem; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-group-hermes { margin-bottom: 1.25rem; }
+.form-label-hermes { display: block; font-family: var(--font-mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 0.5rem; }
+.form-control-hermes { width: 100%; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 0.75rem 1rem; color: var(--text-primary); font-size: 0.9rem; transition: all 0.2s ease; font-family: var(--font-body); }
+.form-control-hermes:focus { outline: none; border-color: var(--accent-cyan); box-shadow: 0 0 0 3px rgba(0,212,255,0.1); }
+.form-control-hermes[readonly] { opacity: 0.6; cursor: not-allowed; }
+.form-control-hermes textarea { resize: vertical; min-height: 80px; }
+.form-hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; display: block; }
+.form-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-subtle); }
+
+.text-center { text-align: center; }
+</style>
+
+<script>
+// Cache for agent data
+let agentCache = {};
+
+async function openEditModal(agentId) {
+    const modal = document.getElementById('editModal');
+    const form = document.getElementById('agentEditForm');
+
+    // Show loading state
+    document.getElementById('editName').value = '加载中...';
+    modal.style.display = 'flex';
+
+    try {
+        // Fetch fresh data
+        const resp = await fetch(`/api/admin/agents/${agentId}`);
+        if (!resp.ok) throw new Error('Failed to fetch agent');
+
+        const agent = await resp.json();
+        agentCache[agentId] = agent;
+
+        // Populate form
+        document.getElementById('editAgentId').value = agent.id;
+        document.getElementById('editAgentCode').value = agent.agent_code;
+        document.getElementById('editName').value = agent.name || '';
+        document.getElementById('editDeviceName').value = agent.device_name || '';
+        document.getElementById('editStatus').value = agent.status;
+        document.getElementById('editEnvTags').value = (agent.environment_tags || []).join(', ');
+        document.getElementById('editCapabilities').value = agent.capabilities || '';
+        document.getElementById('editSelfIntro').value = agent.self_introduction || '';
+
+        // Format work_preferences for display
+        let workPrefsStr = '';
+        if (agent.work_preferences) {
+            if (typeof agent.work_preferences === 'object') {
+                workPrefsStr = JSON.stringify(agent.work_preferences, null, 2);
+            } else {
+                workPrefsStr = String(agent.work_preferences);
+            }
+        }
+        document.getElementById('editWorkPrefs').value = workPrefsStr;
+
+    } catch (e) {
+        showNotification('加载失败: ' + e.message, 'error');
+        closeEditModal();
+    }
+}
+
+function closeEditModal() {
+    document.getElementById('editModal').style.display = 'none';
+    document.getElementById('agentEditForm').reset();
+}
+
+// Close modal on outside click
+document.getElementById('editModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditModal();
+});
+
+// Form submission
+document.getElementById('agentEditForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const agentId = document.getElementById('editAgentId').value;
+    const workPrefsInput = document.getElementById('editWorkPrefs').value.trim();
+
+    // Parse work_preferences
+    let work_preferences = null;
+    if (workPrefsInput) {
+        try {
+            work_preferences = JSON.parse(workPrefsInput);
+        } catch (e) {
+            showNotification('工作偏好 JSON 格式无效', 'error');
+            return;
+        }
+    }
+
+    const data = {
+        name: document.getElementById('editName').value,
+        device_name: document.getElementById('editDeviceName').value || null,
+        status: document.getElementById('editStatus').value,
+        environment_tags: document.getElementById('editEnvTags').value
+            ? document.getElementById('editEnvTags').value.split(',').map(t => t.trim()).filter(t => t)
+            : [],
+        capabilities: document.getElementById('editCapabilities').value || null,
+        self_introduction: document.getElementById('editSelfIntro').value || null,
+        work_preferences: work_preferences
+    };
+
+    try {
+        const resp = await fetch(`/api/admin/agents/${agentId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (resp.ok) {
+            showNotification('智能体信息已更新', 'success');
+            closeEditModal();
+            setTimeout(() => location.reload(), 500);
+        } else {
+            const err = await resp.json();
+            showNotification('更新失败: ' + (err.detail || '未知错误'), 'error');
+        }
+    } catch (e) {
+        showNotification('网络错误: ' + e.message, 'error');
+    }
+});
+
+async function deleteAgent(agentId) {
+    if (!confirm('确认删除此智能体？此操作不可撤销。')) return;
+    if (!confirm('再次确认：删除后所有数据将被永久删除。')) return;
+
+    try {
+        const resp = await fetch(`/api/admin/agents/${agentId}`, {
+            method: 'DELETE'
+        });
+
+        if (resp.ok) {
+            showNotification('智能体已删除', 'success');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            const err = await resp.json();
+            showNotification('删除失败: ' + (err.detail || '未知错误'), 'error');
+        }
+    } catch (e) {
+        showNotification('网络错误: ' + e.message, 'error');
+    }
+}
+
+function showNotification(message, type) {
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeEditModal();
+});
+</script>
+{% endblock %}

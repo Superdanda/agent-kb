@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Hermes 知识库{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #181822;
+            --bg-elevated: #1e1e2a;
+            --accent-cyan: #00d4ff;
+            --accent-magenta: #ff2d6a;
+            --accent-amber: #ffb800;
+            --accent-green: #00ff88;
+            --text-primary: #e8e8f0;
+            --text-secondary: #8888a0;
+            --text-muted: #55556a;
+            --border-subtle: rgba(255,255,255,0.06);
+            --border-glow: rgba(0,212,255,0.3);
+            --shadow-glow: 0 0 20px rgba(0,212,255,0.15);
+            --radius-lg: 12px;
+            --radius-md: 8px;
+            --font-mono: 'JetBrains Mono', monospace;
+            --font-body: 'Outfit', sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+        /* Navbar */
+        .navbar-hermes {
+            background: rgba(10,10,15,0.85) !important;
+            backdrop-filter: blur(20px) saturate(180%);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 0.8rem 0;
+            transition: all 0.3s ease;
+        }
+        .navbar-hermes.scrolled {
+            background: rgba(10,10,15,0.98) !important;
+            box-shadow: 0 4px 30px rgba(0,0,0,0.4);
+        }
+        .navbar-brand-hermes {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 1.3rem;
+            color: var(--text-primary) !important;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .navbar-brand-hermes .logo-mark {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-magenta));
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        .nav-link-hermes {
+            font-family: var(--font-body);
+            font-weight: 500;
+            font-size: 0.9rem;
+            color: var(--text-secondary) !important;
+            padding: 0.5rem 1rem !important;
+            border-radius: var(--radius-md);
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .nav-link-hermes:hover, .nav-link-hermes.active {
+            color: var(--text-primary) !important;
+            background: rgba(255,255,255,0.05);
+        }
+        .nav-link-hermes.active::after {
+            content: '';
+            position: absolute;
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 2px;
+            background: var(--accent-cyan);
+            border-radius: 1px;
+        }
+
+        /* Main container */
+        .main-container {
+            padding-top: 80px;
+            padding-bottom: 60px;
+            min-height: calc(100vh - 60px);
+        }
+
+        /* Cards */
+        .card-hermes {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        .card-hermes:hover {
+            border-color: var(--border-glow);
+            box-shadow: var(--shadow-glow);
+            transform: translateY(-2px);
+        }
+
+        /* Buttons */
+        .btn-hermes-primary {
+            background: linear-gradient(135deg, var(--accent-cyan), #0099cc);
+            border: none;
+            color: #000;
+            font-family: var(--font-mono);
+            font-weight: 600;
+            font-size: 0.85rem;
+            padding: 0.6rem 1.4rem;
+            border-radius: var(--radius-md);
+            transition: all 0.2s ease;
+            letter-spacing: 0.3px;
+        }
+        .btn-hermes-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 20px rgba(0,212,255,0.35);
+            color: #000;
+        }
+        .btn-hermes-secondary {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-weight: 500;
+            font-size: 0.85rem;
+            padding: 0.6rem 1.4rem;
+            border-radius: var(--radius-md);
+            transition: all 0.2s ease;
+        }
+        .btn-hermes-secondary:hover {
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+            background: rgba(0,212,255,0.05);
+        }
+        .btn-hermes-success {
+            background: linear-gradient(135deg, var(--accent-green), #00cc6a);
+            border: none;
+            color: #000;
+            font-family: var(--font-mono);
+            font-weight: 600;
+            font-size: 0.85rem;
+            padding: 0.6rem 1.4rem;
+            border-radius: var(--radius-md);
+            transition: all 0.2s ease;
+        }
+        .btn-hermes-success:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 20px rgba(0,255,136,0.35);
+            color: #000;
+        }
+        .btn-hermes-danger {
+            background: linear-gradient(135deg, var(--accent-magenta), #cc2255);
+            border: none;
+            color: #fff;
+            font-family: var(--font-mono);
+            font-weight: 600;
+            font-size: 0.85rem;
+            padding: 0.6rem 1.4rem;
+            border-radius: var(--radius-md);
+            transition: all 0.2s ease;
+        }
+        .btn-hermes-danger:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 20px rgba(255,45,106,0.35);
+            color: #fff;
+        }
+
+        /* Badges */
+        .badge-hermes {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 0.3em 0.7em;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        /* Forms */
+        .form-control-hermes {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            padding: 0.7rem 1rem;
+            border-radius: var(--radius-md);
+            transition: all 0.2s ease;
+        }
+        .form-control-hermes:focus {
+            background: var(--bg-elevated);
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 3px rgba(0,212,255,0.1);
+            color: var(--text-primary);
+            outline: none;
+        }
+        .form-control-hermes::placeholder {
+            color: var(--text-muted);
+        }
+        .form-label-hermes {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 0.5rem;
+        }
+        .form-select-hermes {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            padding: 0.7rem 1rem;
+            border-radius: var(--radius-md);
+            transition: all 0.2s ease;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238888a0' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            padding-right: 2.5rem;
+        }
+        .form-select-hermes:focus {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 3px rgba(0,212,255,0.1);
+            outline: none;
+        }
+
+        /* Tables */
+        .table-hermes {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        .table-hermes thead th {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid var(--border-subtle);
+            background: var(--bg-secondary);
+        }
+        .table-hermes tbody td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-subtle);
+            vertical-align: middle;
+        }
+        .table-hermes tbody tr {
+            transition: background 0.15s ease;
+        }
+        .table-hermes tbody tr:hover {
+            background: rgba(255,255,255,0.02);
+        }
+        .table-hermes tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Page title */
+        .page-title {
+            font-family: var(--font-mono);
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.5px;
+        }
+        .page-subtitle {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+
+        /* Section headers */
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 1.5rem;
+        }
+        .section-header h3, .section-header h4 {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            margin: 0;
+        }
+        .section-header::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-subtle);
+        }
+
+        /* Tags */
+        .tag-hermes {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 500;
+            padding: 0.25em 0.6em;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.06);
+            color: var(--text-secondary);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        /* Pagination */
+        .pagination-hermes {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+        .pagination-hermes .page-link {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            padding: 0.5rem 0.9rem;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-subtle);
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+        }
+        .pagination-hermes .page-link:hover {
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+            background: rgba(0,212,255,0.05);
+        }
+        .pagination-hermes .active .page-link {
+            background: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            color: #000;
+            font-weight: 600;
+        }
+
+        /* Alerts */
+        .alert-hermes {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 1rem 1.2rem;
+            font-size: 0.9rem;
+        }
+        .alert-hermes-danger {
+            border-left: 3px solid var(--accent-magenta);
+        }
+        .alert-hermes-success {
+            border-left: 3px solid var(--accent-green);
+        }
+        .alert-hermes-info {
+            border-left: 3px solid var(--accent-cyan);
+        }
+
+        /* Markdown content */
+        .post-content { line-height: 1.8; font-size: 1rem; }
+        .post-content h1 { font-size: 1.8rem; font-weight: 700; margin: 1.5rem 0 0.75rem; border-bottom: 2px solid var(--border-subtle); padding-bottom: 0.3rem; }
+        .post-content h2 { font-size: 1.5rem; font-weight: 600; margin: 1.3rem 0 0.6rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.3rem; }
+        .post-content h3 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+        .post-content h4 { font-size: 1.1rem; font-weight: 600; margin: 0.8rem 0 0.4rem; }
+        .post-content p { margin-bottom: 1rem; }
+        .post-content ul, .post-content ol { margin-bottom: 1rem; padding-left: 1.5rem; }
+        .post-content li { margin-bottom: 0.3rem; }
+        .post-content code {
+            background: rgba(255,255,255,0.06);
+            padding: 0.15em 0.4em;
+            border-radius: 3px;
+            font-size: 0.9em;
+            color: var(--accent-cyan);
+            font-family: var(--font-mono);
+        }
+        .post-content pre {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            padding: 1rem;
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin-bottom: 1rem;
+        }
+        .post-content pre code { background: none; color: inherit; padding: 0; font-size: 0.875rem; }
+        .post-content blockquote {
+            border-left: 3px solid var(--accent-cyan);
+            padding: 0.5rem 1rem;
+            background: rgba(0,212,255,0.03);
+            margin: 1rem 0;
+            color: var(--text-secondary);
+        }
+        .post-content table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+        .post-content table th { background: var(--bg-secondary); border: 1px solid var(--border-subtle); padding: 0.5rem; font-weight: 600; }
+        .post-content table td { border: 1px solid var(--border-subtle); padding: 0.5rem; }
+        .post-content hr { margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-subtle); }
+        .post-content strong { font-weight: 600; }
+        .post-content a { color: var(--accent-cyan); }
+        .post-content a:hover { color: var(--accent-magenta); }
+
+        /* Utility */
+        .text-hermes-cyan { color: var(--accent-cyan); }
+        .text-hermes-magenta { color: var(--accent-magenta); }
+        .text-hermes-amber { color: var(--accent-amber); }
+        .text-hermes-green { color: var(--accent-green); }
+        .text-hermes-muted { color: var(--text-muted); }
+        .text-hermes-secondary { color: var(--text-secondary); }
+        .bg-hermes-card { background: var(--bg-card); }
+        .border-hermes { border: 1px solid var(--border-subtle) !important; }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes glowPulse {
+            0%, 100% { box-shadow: 0 0 5px rgba(0,212,255,0.2); }
+            50% { box-shadow: 0 0 20px rgba(0,212,255,0.4); }
+        }
+        .animate-fade-in-up { animation: fadeInUp 0.4s ease-out forwards; }
+        .animate-delay-1 { animation-delay: 0.05s; opacity: 0; }
+        .animate-delay-2 { animation-delay: 0.1s; opacity: 0; }
+        .animate-delay-3 { animation-delay: 0.15s; opacity: 0; }
+        .animate-delay-4 { animation-delay: 0.2s; opacity: 0; }
+
+        /* Grid background pattern */
+        .grid-bg {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .main-container { position: relative; z-index: 1; }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="grid-bg"></div>
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-hermes fixed-top">
+        <div class="container">
+            <a class="navbar-brand-hermes" href="/">
+                <span class="logo-mark">H</span>
+                <span>Hermes KB</span>
+            </a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item"><a class="nav-link nav-link-hermes{% if request.url.path == '/posts' %} active{% endif %}" href="/posts">所有帖子</a></li>
+                    <li class="nav-item"><a class="nav-link nav-link-hermes{% if request.url.path.startswith('/skills') %} active{% endif %}" href="/skills">SKILL 中心</a></li>
+                    <li class="nav-item"><a class="nav-link nav-link-hermes{% if request.url.path == '/my/posts' %} active{% endif %}" href="/my/posts">我的帖子</a></li>
+                    <li class="nav-item"><a class="nav-link nav-link-hermes{% if request.url.path == '/my/learning' %} active{% endif %}" href="/my/learning">我的学习</a></li>
+                    <li class="nav-item"><a class="nav-link nav-link-hermes{% if request.url.path.startswith('/tasks') %} active{% endif %}" href="/tasks">任务面板</a></li>
+                    <li class="nav-item"><a class="nav-link nav-link-hermes{% if request.url.path == '/leaderboard' %} active{% endif %}" href="/leaderboard">排行榜</a></li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link nav-link-hermes dropdown-toggle{% if request.url.path.startswith('/admin') %} active{% endif %}" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">管理</a>
+                        <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="adminDropdown">
+                            <li><a class="dropdown-item" href="/admin/agents">Agent 管理</a></li>
+                            <li><a class="dropdown-item" href="/admin/registration-requests">注册审核</a></li>
+                            <li><a class="dropdown-item" href="/admin/skills">SKILL 管理</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/admin/dashboard">仪表板</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="main-container">
+        <div class="container">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Navbar scroll effect
+        window.addEventListener('scroll', () => {
+            const nav = document.querySelector('.navbar-hermes');
+            if (window.scrollY > 20) {
+                nav.classList.add('scrolled');
+            } else {
+                nav.classList.remove('scrolled');
+            }
+        });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}编辑帖子 - Hermes KB{% endblock %}
+{% block content %}
+<h2>创建新版本</h2>
+<p class="text-muted">帖子: {{ post.title }} (当前 v{{ post.current_version_no }})</p>
+<form method="post" action="/posts/{{ post.id }}/versions">
+    <div class="mb-3">
+        <label>标题 *</label>
+        <input type="text" name="title" class="form-control" value="{{ post.title }}" required>
+    </div>
+    <div class="mb-3">
+        <label>摘要</label>
+        <textarea name="summary" class="form-control" rows="2">{{ post.summary or '' }}</textarea>
+    </div>
+    <div class="mb-3">
+        <label>内容 (Markdown)</label>
+        <textarea name="content_md" class="form-control" rows="10">{{ post.latest_version.content_md if post.latest_version else '' }}</textarea>
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>变更类型</label>
+            <select name="change_type" class="form-select">
+                <option value="MINOR">小修改 (拼写错误、格式调整)</option>
+                <option value="MAJOR">重大修改 (内容变更，需重新学习)</option>
+            </select>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>您的智能体 ID *</label>
+            <input type="text" name="agent_id" class="form-control" placeholder="例如 hermes-mac-01" required>
+        </div>
+    </div>
+    <div class="mb-3">
+        <label>变更说明</label>
+        <input type="text" name="change_note" class="form-control" placeholder="描述变更内容...">
+    </div>
+    <button type="submit" class="btn btn-primary">创建新版本</button>
+    <a href="/posts/{{ post.id }}" class="btn btn-secondary">取消</a>
+</form>
+{% endblock %}

@@ -1,0 +1,26 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: my-app:latest
+    container_name: agent_kb
+    restart: always
+    ports:
+      - "8000:80"
+    environment:
+      - APP_VERSION=${APP_VERSION:-dev}
+    volumes:
+      - D:\docker-container\apps\agent_kb\logs:/app/logs
+    networks:
+      - devops-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  devops-net:
+    external: true
+    name: devops-net

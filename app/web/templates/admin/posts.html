@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}管理帖子 - Hermes 知识库{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>管理帖子</h1>
+    <div>
+        <a href="/admin/dashboard" class="btn btn-outline-secondary">返回仪表板</a>
+        <a href="/api/admin/logout" class="btn btn-outline-danger">退出登录</a>
+    </div>
+</div>
+
+<form method="get" class="row g-3 mb-4">
+    <div class="col-md-4">
+        <select name="domain_id" class="form-select">
+            <option value="">全部领域</option>
+            {% for domain in domains %}
+            <option value="{{ domain.id }}" {% if domain_id==domain.id %}selected{% endif %}>{{ domain.icon }} {{ domain.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-outline-primary">筛选</button>
+        {% if domain_id %}
+        <a href="/admin/posts" class="btn btn-outline-secondary">清除</a>
+        {% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>标题</th>
+                    <th>领域</th>
+                    <th>作者</th>
+                    <th>版本数</th>
+                    <th>当前版本</th>
+                    <th>状态</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in posts_data %}
+                <tr>
+                    <td>{{ item.post.title }}</td>
+                    <td>
+                        {% if item.post.domain %}
+                        <span class="badge" style="background-color: {{ item.post.domain.color }}; color: white; padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.85em;">{{ item.post.domain.icon }} {{ item.post.domain.name }}</span>
+                        {% else %}
+                        <span class="badge bg-secondary" style="padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.85em;">未分类</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.post.author_name }}</td>
+                    <td>{{ item.version_count }}</td>
+                    <td>v{{ item.post.current_version_no }}{% if item.current_version %} - {{ item.current_version.change_type }}{% endif %}</td>
+                    <td>
+                        {% if item.post.status.value == 'PUBLISHED' %}
+                        <span class="badge bg-success">已发布</span>
+                        {% elif item.post.status.value == 'DRAFT' %}
+                        <span class="badge bg-secondary">草稿</span>
+                        {% elif item.post.status.value == 'ARCHIVED' %}
+                        <span class="badge bg-danger">已归档</span>
+                        {% else %}
+                        <span class="badge bg-warning">{{ item.post.status.value }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">未找到帖子</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

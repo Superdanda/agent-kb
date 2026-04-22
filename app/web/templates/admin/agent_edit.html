@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block title %}编辑智能体 - Hermes 知识库{% endblock %}
+{% block content %}
+<div class="agent-edit-header animate-fade-in-up">
+    <div class="agent-edit-title-row">
+        <div>
+            <h1 class="page-title">编辑智能体</h1>
+            <p class="page-subtitle">管理智能体信息和凭证</p>
+        </div>
+        <div class="header-actions">
+            <a href="/admin/agents" class="btn-hermes-secondary">返回列表</a>
+            <a href="/admin/dashboard" class="btn-hermes-secondary">返回仪表板</a>
+        </div>
+    </div>
+</div>
+
+<div class="agent-edit-content">
+    <!-- Agent Info Card -->
+    <div class="edit-card card-hermes animate-fade-in-up animate-delay-1">
+        <div class="card-header-hermes">
+            <h3>基本信息</h3>
+            <span class="badge-hermes {% if agent.status.value=='ACTIVE' %}status-active{% else %}status-inactive{% endif %}" id="statusBadge">
+                {% if agent.status.value=='ACTIVE' %}活跃{% else %}非活跃{% endif %}
+            </span>
+        </div>
+        <div class="card-body-hermes">
+            <form id="agentUpdateForm">
+                <input type="hidden" id="agentId" value="{{ agent.id }}">
+                
+                <div class="form-group-hermes">
+                    <label class="form-label-hermes">智能体代码</label>
+                    <input type="text" class="form-control-hermes" value="{{ agent.agent_code }}" readonly>
+                    <small class="form-hint">智能体代码无法修改</small>
+                </div>
+
+                <div class="form-group-hermes">
+                    <label class="form-label-hermes" for="agentName">名称</label>
+                    <input type="text" class="form-control-hermes" id="agentName" name="name" value="{{ agent.name }}" required>
+                </div>
+
+                <div class="form-group-hermes">
+                    <label class="form-label-hermes" for="deviceName">设备名称</label>
+                    <input type="text" class="form-control-hermes" id="deviceName" name="device_name" value="{{ agent.device_name or '' }}">
+                </div>
+
+                <div class="form-group-hermes">
+                    <label class="form-label-hermes" for="envTags">环境标签</label>
+                    <input type="text" class="form-control-hermes" id="envTags" name="environment_tags" 
+                           value="{{ agent.environment_tags|join(', ') if agent.environment_tags else '' }}"
+                           placeholder="多个标签用逗号分隔">
+                    <small class="form-hint">多个标签用逗号分隔</small>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-hermes-primary">保存修改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Credentials Card -->
+    <div class="edit-card card-hermes animate-fade-in-up animate-delay-2">
+        <div class="card-header-hermes">
+            <h3>认证凭证</h3>
+        </div>
+        <div class="card-body-hermes">
+            <div class="cred-section">
+                <div class="cred-info">
+                    <p class="cred-description">重置凭证将生成新的 Access Key 和 Secret Key。旧凭证将被立即失效。</p>
+                </div>
+                <button class="btn-hermes-warning" onclick="resetCredentials()">重置凭证</button>
+            </div>
+            <div id="newCredentialsDisplay" class="new-credentials" style="display:none;">
+                <div class="cred-item">
+                    <span class="cred-label">Access Key</span>
+                    <code class="cred-value" id="newAccessKey"></code>
+                </div>
+                <div class="cred-item">
+                    <span class="cred-label">Secret Key</span>
+                    <code class="cred-value secret" id="newSecretKey"></code>
+                </div>
+                <p class="cred-warning">⚠️ Secret Key 仅显示一次，请立即复制保存！</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Card -->
+    <div class="edit-card card-hermes animate-fade-in-up animate-delay-3">
+        <div class="card-header-hermes">
+            <h3>状态管理</h3>
+        </div>
+        <div class="card-body-hermes">
+            <div class="status-actions">
+                {% if agent.status.value=='ACTIVE' %}
+                <p class="status-info">当前状态: <strong class="text-hermes-green">活跃</strong></p>
+                <button class="btn-hermes-danger" onclick="deactivateAgent()">停用智能体</button>
+                {% else %}
+                <p class="status-info">当前状态: <strong class="text-hermes-magenta">非活跃</strong></p>
+                <button class="btn-hermes-success" onclick="reactivateAgent()">激活智能体</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Danger Zone -->
+    <div class="edit-card card-hermes danger-zone animate-fade-in-up animate-delay-4">
+        <div class="card-header-hermes">
+            <h3>危险区域</h3>
+        </div>
+        <div class="card-body-hermes">
+            <div class="danger-action">
+                <div class="danger-info">
+                    <strong>删除智能体</strong>
+                    <p>删除后无法恢复，所有相关数据将被永久删除。</p>
+                </div>
+                <button class="btn-hermes-danger btn-delete" onclick="deleteAgent()">删除智能体</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.agent-edit-header { margin-bottom: 1.5rem; }
+.agent-edit-title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.header-actions { display: flex; gap: 0.75rem; }
+.agent-edit-content { display: flex; flex-direction: column; gap: 1.5rem; max-width: 800px; }
+.edit-card { padding: 1.5rem; }
+.card-header-hermes { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-subtle); }
+.card-header-hermes h3 { font-family: var(--font-mono); font-size: 1rem; color: var(--text-primary); margin: 0; }
+.card-body-hermes { }
+.form-group-hermes { margin-bottom: 1.25rem; }
+.form-label-hermes { display: block; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 0.5rem; }
+.form-control-hermes { width: 100%; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 0.75rem 1rem; color: var(--text-primary); font-size: 0.9rem; transition: all 0.2s ease; }
+.form-control-hermes:focus { outline: none; border-color: var(--accent-cyan); box-shadow: 0 0 0 3px rgba(0,212,255,0.1); }
+.form-control-hermes[readonly] { opacity: 0.6; cursor: not-allowed; }
+.form-hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
+.form-actions { margin-top: 1.5rem; }
+.cred-section { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.cred-description { font-size: 0.85rem; color: var(--text-secondary); margin: 0; }
+.new-credentials { margin-top: 1.5rem; padding: 1rem; background: var(--bg-elevated); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); }
+.cred-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-subtle); }
+.cred-item:last-of-type { border-bottom: none; }
+.cred-label { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
+.cred-value { font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-cyan); word-break: break-all; }
+.cred-value.secret { color: var(--accent-magenta); }
+.cred-warning { font-size: 0.8rem; color: var(--accent-amber); text-align: center; margin-top: 1rem; margin-bottom: 0; }
+.status-actions { display: flex; flex-direction: column; gap: 1rem; }
+.status-info { font-size: 0.9rem; color: var(--text-secondary); margin: 0; }
+.danger-zone { border-color: rgba(255,45,106,0.3); }
+.danger-zone .card-header-hermes { border-color: rgba(255,45,106,0.2); }
+.danger-action { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.danger-info p { font-size: 0.8rem; color: var(--text-muted); margin: 0.25rem 0 0 0; }
+.btn-delete { background: rgba(255,45,106,0.1); }
+</style>
+
+<script>
+const agentId = document.getElementById('agentId').value;
+
+// Update agent
+document.getElementById('agentUpdateForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('agentName').value;
+    const deviceName = document.getElementById('deviceName').value;
+    const envTagsInput = document.getElementById('envTags').value;
+    const environment_tags = envTagsInput ? envTagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
+
+    try {
+        const resp = await fetch(`/api/admin/agents/${agentId}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name, device_name: deviceName, environment_tags})
+        });
+        if (resp.ok) {
+            showNotification('Agent updated successfully', 'success');
+        } else {
+            const err = await resp.json();
+            showNotification('Update failed: ' + (err.detail || 'Unknown error'), 'error');
+        }
+    } catch(e) {
+        showNotification('Network error: ' + e.message, 'error');
+    }
+});
+
+// Deactivate agent
+async function deactivateAgent() {
+    if (!confirm('停用此智能体？停用后智能体将无法连接。')) return;
+    try {
+        const resp = await fetch(`/api/admin/agents/${agentId}/deactivate`, {method: 'POST'});
+        if (resp.ok) {
+            showNotification('Agent deactivated', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            const err = await resp.json();
+            showNotification('Failed: ' + (err.detail || 'Unknown error'), 'error');
+        }
+    } catch(e) {
+        showNotification('Network error: ' + e.message, 'error');
+    }
+}
+
+// Reactivate agent
+async function reactivateAgent() {
+    if (!confirm('激活此智能体？')) return;
+    try {
+        const resp = await fetch(`/api/admin/agents/${agentId}/reactivate`, {method: 'POST'});
+        if (resp.ok) {
+            showNotification('Agent reactivated', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            const err = await resp.json();
+            showNotification('Failed: ' + (err.detail || 'Unknown error'), 'error');
+        }
+    } catch(e) {
+        showNotification('Network error: ' + e.message, 'error');
+    }
+}
+
+// Reset credentials
+async function resetCredentials() {
+    if (!confirm('重置凭证？新的 Secret Key 将显示，请立即保存！')) return;
+    try {
+        const resp = await fetch(`/api/admin/agents/${agentId}/reset-credentials`, {method: 'POST'});
+        if (resp.ok) {
+            const data = await resp.json();
+            document.getElementById('newAccessKey').textContent = data.access_key;
+            document.getElementById('newSecretKey').textContent = data.secret_key;
+            document.getElementById('newCredentialsDisplay').style.display = 'block';
+            showNotification('Credentials reset successfully', 'success');
+        } else {
+            const err = await resp.json();
+            showNotification('Failed: ' + (err.detail || 'Unknown error'), 'error');
+        }
+    } catch(e) {
+        showNotification('Network error: ' + e.message, 'error');
+    }
+}
+
+// Delete agent
+async function deleteAgent() {
+    if (!confirm('删除此智能体？此操作不可撤销！')) return;
+    if (!confirm('再次确认：删除后所有数据将被永久删除。')) return;
+    try {
+        const resp = await fetch(`/api/admin/agents/${agentId}`, {method: 'DELETE'});
+        if (resp.ok) {
+            showNotification('Agent deleted', 'success');
+            setTimeout(() => { window.location.href = '/admin/agents'; }, 1000);
+        } else {
+            const err = await resp.json();
+            showNotification('Failed: ' + (err.detail || 'Unknown error'), 'error');
+        }
+    } catch(e) {
+        showNotification('Network error: ' + e.message, 'error');
+    }
+}
+
+function showNotification(message, type) {
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+}
+</script>
+{% endblock %}

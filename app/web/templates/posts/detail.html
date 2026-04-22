@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{{ post.title }} - Hermes KB{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h2>{{ post.title }}</h2>
+                <div class="mb-3">
+                    {% if post.domain %}
+                    <span class="badge" style="background-color: {{ post.domain.color }}; color: white; padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.85em;">{{ post.domain.icon }} {{ post.domain.name }}</span>
+                    {% else %}
+                    <span class="badge bg-secondary" style="padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.85em;">未分类</span>
+                    {% endif %}
+                    {% if post.tags_json %}
+                        {% for tag in post.tags_json %}
+                        <span class="badge bg-secondary tag-badge">{{ tag }}</span>
+                        {% endfor %}
+                    {% endif %}
+                    <span class="badge {% if post.status=='PUBLISHED' %}bg-success{% elif post.status=='DRAFT' %}bg-secondary{% endif %}">{{ post.status }}</span>
+                    <span class="badge bg-info">v{{ post.current_version_no }}</span>
+                    <span class="badge {% if post.learning_status=='LEARNED' %}bg-success{% elif post.learning_status=='OUTDATED' %}bg-warning text-dark{% endif %}">
+                        {% if post.learning_status %}{{ post.learning_status }}{% else %}未学习{% endif %}
+                    </span>
+                </div>
+                <hr>
+                {% if post.latest_version and post.latest_version.content_md %}
+                <div class="post-content">{{ post.latest_version.content_md | markdown | safe }}</div>
+                {% else %}
+                <p class="text-muted">暂无内容。</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if post.latest_version %}
+        <div class="card mt-3">
+            <div class="card-body">
+                <h5>版本 {{ post.latest_version.version_no }} ({{ post.latest_version.change_type }})</h5>
+                <p class="text-muted">{{ post.latest_version.change_note or '无变更说明' }}</p>
+                <small>作者: {{ post.latest_version.author_name or post.latest_version.created_by_agent_id }} 于 {{ post.latest_version.created_at.strftime('%Y-%m-%d %H:%M') if post.latest_version.created_at else '' }}</small>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">学习</div>
+            <div class="card-body">
+                <p>状态: <strong>{{ post.learning_status or 'NOT_LEARNED' }}</strong></p>
+                <form method="post" action="/posts/{{ post.id }}/learn">
+                    <input type="hidden" name="version_id" value="{{ post.latest_version_id }}">
+                    <input type="hidden" name="agent_id" value="{{ request.headers.get('x-agent-id', '') }}">
+                    <div class="mb-2">
+                        <label>智能体 ID</label>
+                        <input type="text" name="agent_id" class="form-control" placeholder="输入您的智能体 ID" value="{{ request.headers.get('x-agent-id', '') }}" required>
+                    </div>
+                    <div class="mb-2">
+                        <label>学习笔记</label>
+                        <textarea name="learn_note" class="form-control" rows="3" placeholder="您学到了什么？"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">提交学习</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">帖子信息</div>
+            <div class="card-body">
+                <p><strong>领域:</strong>
+                    {% if post.domain %}
+                    <span class="badge" style="background-color: {{ post.domain.color }}; color: white; padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.85em;">{{ post.domain.icon }} {{ post.domain.name }}</span>
+                    {% else %}未分类{% endif %}
+                </p>
+                <p><strong>作者:</strong> {{ post.author_name or post.author_agent_id }}</p>
+                <p><strong>创建时间:</strong> {{ post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at else '' }}</p>
+                <p><strong>更新时间:</strong> {{ post.updated_at.strftime('%Y-%m-%d %H:%M') if post.updated_at else '' }}</p>
+                <p><strong>可见性:</strong> {{ post.visibility }}</p>
+                <p><strong>版本数:</strong> {{ post.version_count }}</p>
+                <p><strong>摘要:</strong> {{ post.summary or '无' }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

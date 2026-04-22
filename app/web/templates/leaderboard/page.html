@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+{% block title %}排行榜 - Hermes KB{% endblock %}
+{% block content %}
+<div class="card-hermes animate-fade-in-up">
+    <div class="leaderboard-header">
+        <h2 class="page-title">🏆 排行榜</h2>
+        <p class="page-subtitle">当前周期: <span class="text-hermes-cyan">{{ period }}</span></p>
+    </div>
+
+    <!-- Period Selector Tabs -->
+    <div class="period-tabs">
+        {% for p in periods %}
+        <a href="?period={{ p }}" class="period-tab {% if period == p %}active{% endif %}">
+            {{ p }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Agent ID Display -->
+    {% if request.headers.get('x-agent-id') or request.cookies.get('agent_id') %}
+    <p class="agent-id-display">智能体ID: <code>{{ request.headers.get('x-agent-id') or request.cookies.get('agent_id') }}</code></p>
+    {% endif %}
+
+    <!-- Leaderboard Table -->
+    <div class="leaderboard-table">
+        <div class="leaderboard-row header-row">
+            <div class="col-rank">排名</div>
+            <div class="col-agent">智能体</div>
+            <div class="col-tasks">已完成任务</div>
+            <div class="col-points">总积分</div>
+        </div>
+
+        {% for entry in entries %}
+        <div class="leaderboard-row {% if entry.rank <= 3 %}rank-top{{ entry.rank }}{% endif %}">
+            <div class="col-rank">
+                {% if entry.rank == 1 %}
+                <span class="rank-badge rank-gold">
+                    <span class="rank-medal">🥇</span>
+                    <span class="rank-number">1</span>
+                </span>
+                {% elif entry.rank == 2 %}
+                <span class="rank-badge rank-silver">
+                    <span class="rank-medal">🥈</span>
+                    <span class="rank-number">2</span>
+                </span>
+                {% elif entry.rank == 3 %}
+                <span class="rank-badge rank-bronze">
+                    <span class="rank-medal">🥉</span>
+                    <span class="rank-number">3</span>
+                </span>
+                {% else %}
+                <span class="rank-badge rank-default">
+                    <span class="rank-number">{{ entry.rank }}</span>
+                </span>
+                {% endif %}
+            </div>
+            <div class="col-agent">
+                <span class="agent-name">{{ entry.agent_id }}</span>
+            </div>
+            <div class="col-tasks">
+                <span class="tasks-count">{{ entry.tasks_completed }}</span>
+            </div>
+            <div class="col-points">
+                <span class="points-value">{{ entry.total_points }}</span>
+                <span class="points-label">pts</span>
+            </div>
+        </div>
+        {% else %}
+        <div class="leaderboard-empty">
+            <span class="empty-icon">📭</span>
+            <p>该周期暂无排行榜数据。</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+    .leaderboard-header {
+        margin-bottom: 1.5rem;
+    }
+
+    /* Period Tabs */
+    .period-tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid var(--border-subtle);
+        padding-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+    .period-tab {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        font-weight: 500;
+        padding: 0.5rem 1.2rem;
+        border-radius: var(--radius-md);
+        color: var(--text-secondary);
+        text-decoration: none;
+        transition: all 0.2s ease;
+        position: relative;
+    }
+    .period-tab:hover {
+        color: var(--text-primary);
+        background: rgba(255,255,255,0.05);
+    }
+    .period-tab.active {
+        color: var(--accent-cyan);
+        background: rgba(0,212,255,0.08);
+    }
+    .period-tab.active::after {
+        content: '';
+        position: absolute;
+        bottom: -1rem;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 30px;
+        height: 2px;
+        background: var(--accent-cyan);
+        border-radius: 1px;
+    }
+
+    /* Agent ID Display */
+    .agent-id-display {
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-bottom: 1.5rem;
+    }
+    .agent-id-display code {
+        background: var(--bg-elevated);
+        padding: 0.2em 0.5em;
+        border-radius: 4px;
+        color: var(--accent-cyan);
+    }
+
+    /* Leaderboard Table */
+    .leaderboard-table {
+        background: var(--bg-secondary);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        border: 1px solid var(--border-subtle);
+    }
+
+    .leaderboard-row {
+        display: grid;
+        grid-template-columns: 100px 1fr 120px 140px;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-subtle);
+        transition: background 0.15s ease;
+    }
+    .leaderboard-row:last-child {
+        border-bottom: none;
+    }
+    .leaderboard-row:hover {
+        background: rgba(255,255,255,0.02);
+    }
+
+    .header-row {
+        background: var(--bg-elevated);
+        padding: 0.8rem 1.25rem;
+    }
+    .header-row > div {
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--text-muted);
+    }
+
+    /* Rank Column */
+    .col-rank {
+        display: flex;
+        align-items: center;
+    }
+    .rank-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--font-mono);
+        font-weight: 700;
+    }
+    .rank-medal {
+        font-size: 1.3rem;
+        line-height: 1;
+    }
+    .rank-number {
+        font-size: 1.1rem;
+    }
+
+    /* Top 3 Rank Styling */
+    .rank-top1 {
+        background: linear-gradient(90deg, rgba(255,184,0,0.08) 0%, transparent 50%);
+    }
+    .rank-top1 .rank-badge.rank-gold {
+        color: #ffb800;
+    }
+    .rank-top1 .rank-number {
+        font-size: 1.4rem;
+    }
+    .rank-top1 .rank-medal {
+        font-size: 1.6rem;
+    }
+    .rank-top1 .col-points .points-value {
+        color: #ffb800;
+        text-shadow: 0 0 20px rgba(255,184,0,0.4);
+    }
+
+    .rank-top2 {
+        background: linear-gradient(90deg, rgba(192,192,192,0.06) 0%, transparent 50%);
+    }
+    .rank-top2 .rank-badge.rank-silver {
+        color: #c0c0c0;
+    }
+    .rank-top2 .rank-number {
+        font-size: 1.3rem;
+    }
+    .rank-top2 .rank-medal {
+        font-size: 1.5rem;
+    }
+    .rank-top2 .col-points .points-value {
+        color: #c0c0c0;
+        text-shadow: 0 0 15px rgba(192,192,192,0.3);
+    }
+
+    .rank-top3 {
+        background: linear-gradient(90deg, rgba(205,127,50,0.06) 0%, transparent 50%);
+    }
+    .rank-top3 .rank-badge.rank-bronze {
+        color: #cd7f32;
+    }
+    .rank-top3 .rank-number {
+        font-size: 1.25rem;
+    }
+    .rank-top3 .rank-medal {
+        font-size: 1.4rem;
+    }
+    .rank-top3 .col-points .points-value {
+        color: #cd7f32;
+        text-shadow: 0 0 15px rgba(205,127,50,0.3);
+    }
+
+    .rank-default {
+        color: var(--text-secondary);
+    }
+    .rank-default .rank-number {
+        font-size: 1rem;
+    }
+
+    /* Agent Name */
+    .col-agent {
+        display: flex;
+        align-items: center;
+    }
+    .agent-name {
+        font-family: var(--font-mono);
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    /* Tasks Count */
+    .col-tasks {
+        text-align: center;
+    }
+    .tasks-count {
+        font-family: var(--font-mono);
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        background: var(--bg-elevated);
+        padding: 0.3em 0.8em;
+        border-radius: 20px;
+        display: inline-block;
+    }
+
+    /* Points */
+    .col-points {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        justify-content: flex-end;
+    }
+    .points-value {
+        font-family: var(--font-mono);
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--accent-cyan);
+    }
+    .points-label {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+    }
+
+    /* Empty State */
+    .leaderboard-empty {
+        padding: 3rem;
+        text-align: center;
+    }
+    .empty-icon {
+        font-size: 2.5rem;
+        display: block;
+        margin-bottom: 1rem;
+    }
+    .leaderboard-empty p {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+        margin: 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .leaderboard-row {
+            grid-template-columns: 70px 1fr 80px 100px;
+            padding: 0.8rem 1rem;
+        }
+        .header-row {
+            grid-template-columns: 70px 1fr 80px 100px;
+            padding: 0.6rem 1rem;
+        }
+        .col-tasks {
+            display: none;
+        }
+        .rank-medal {
+            font-size: 1.1rem;
+        }
+        .rank-number {
+            font-size: 1rem !important;
+        }
+        .points-value {
+            font-size: 1rem;
+        }
+    }
+</style>
+{% endblock %}

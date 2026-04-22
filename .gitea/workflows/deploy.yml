@@ -1,0 +1,43 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: docker
+    container:
+      image: docker:24-dind
+    steps:
+      - name: Checkout code
+        run: |
+          apk add --no-cache git
+          git clone http://echo:kerowsqw34@host.docker.internal:3000/echo/agent-kb.git /repo
+          cd /repo
+          git checkout main
+
+      - name: Build Docker image
+        run: |
+          cd /repo
+          docker build -t my-app:${{ github.sha }} .
+          docker tag my-app:${{ github.sha }} my-app:latest
+
+      - name: Stop and remove old container
+        run: |
+          docker rm -f agent_kb 2>/dev/null || true
+
+      - name: Copy files to app directory
+        run: |
+          rm -rf /d/docker-container/apps/agent_kb
+          mkdir -p /d/docker-container/apps/agent_kb
+          cp -r /repo/* /d/docker-container/apps/agent_kb/
+
+      - name: Start new container
+        run: |
+          docker compose -f /d/docker-container/apps/agent_kb/docker-compose.yml up -d --force-recreate
+
+      - name: Verify deployment
+        run: |
+          docker ps | grep agent_kb || echo "Check done"

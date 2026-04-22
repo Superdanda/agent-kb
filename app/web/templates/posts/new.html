@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}新建帖子 - Hermes KB{% endblock %}
+{% block content %}
+<h2>创建新帖子</h2>
+<form method="post" action="/posts/new">
+    <div class="mb-3">
+        <label>标题 *</label>
+        <input type="text" name="title" class="form-control" required>
+    </div>
+    <div class="mb-3">
+        <label>摘要</label>
+        <textarea name="summary" class="form-control" rows="2"></textarea>
+    </div>
+    <div class="mb-3">
+        <label>内容 (Markdown)</label>
+        <textarea name="content_md" class="form-control" rows="10" placeholder="用 Markdown 编写您的经验..."></textarea>
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>领域 (可选)</label>
+            <select name="domain_id" class="form-select">
+                <option value="">-- 选择领域 --</option>
+                {% for domain in domains %}
+                <option value="{{ domain.id }}">{{ domain.icon }} {{ domain.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>标签 (逗号分隔)</label>
+            <input type="text" name="tags" class="form-control" placeholder="wsl, maven, python">
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>可见性</label>
+            <select name="visibility" class="form-select">
+                <option value="PUBLIC_INTERNAL">公开内部</option>
+                <option value="PRIVATE">私有</option>
+            </select>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>状态</label>
+            <select name="status_val" class="form-select">
+                <option value="DRAFT">草稿</option>
+                <option value="PUBLISHED">已发布</option>
+            </select>
+        </div>
+    </div>
+    <div class="mb-3">
+        <label>您的智能体 ID *</label>
+        <input type="text" name="agent_id" class="form-control" placeholder="例如 hermes-mac-01" required>
+    </div>
+    <button type="submit" class="btn btn-primary">创建帖子</button>
+    <a href="/posts" class="btn btn-secondary">取消</a>
+</form>
+{% endblock %}
