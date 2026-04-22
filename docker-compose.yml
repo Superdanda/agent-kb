@@ -18,7 +18,7 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-    env_file: .env
+    env_file: ${ENV_FILE:-.env}
     ports:
       - "8000:8000"
     volumes:
