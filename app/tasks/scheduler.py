@@ -42,6 +42,16 @@ def init_scheduler() -> BackgroundScheduler:
         name="Poll and execute due agent schedulers",
         replace_existing=True,
     )
+
+    # Check agent heartbeat status every minute
+    from app.tasks.agent_heartbeat_check import run_heartbeat_check
+    scheduler.add_job(
+        run_heartbeat_check,
+        CronTrigger(second=30),  # Every minute at second 30
+        id="agent_heartbeat_check",
+        name="Mark stale agents as INACTIVE",
+        replace_existing=True,
+    )
     
     logger.info(f"Scheduler initialized with {len(scheduler.get_jobs())} jobs")
     return scheduler

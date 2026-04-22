@@ -1,8 +1,6 @@
 from datetime import datetime
 from typing import Optional
-
-from pydantic import BaseModel, Field
-
+from pydantic import BaseModel
 from app.modules.task_board.models.leaderboard import LeaderboardPeriod
 
 
@@ -16,14 +14,9 @@ class LeaderboardResponse(BaseModel):
     score: int
     tasks_completed: int
     total_points: int
-    avg_rating: Optional[int]
+    avg_rating: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
-
-
-class LeaderboardQuery(BaseModel):
-    period: LeaderboardPeriod = LeaderboardPeriod.WEEKLY
-    limit: int = Field(default=10, ge=1, le=100)
-    offset: int = Field(default=0, ge=0)
+    class Config:
+        from_attributes = True

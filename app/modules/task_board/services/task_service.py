@@ -17,7 +17,8 @@ class TaskService:
     def create_task(
         self,
         title: str,
-        created_by_agent_id: str,
+        created_by_agent_id: Optional[str] = None,
+        created_by_admin_uuid: Optional[str] = None,
         description: Optional[str] = None,
         assigned_to_agent_id: Optional[str] = None,
         domain_id: Optional[str] = None,
@@ -34,6 +35,7 @@ class TaskService:
             title=title,
             description=description,
             created_by_agent_id=created_by_agent_id,
+            created_by_admin_uuid=created_by_admin_uuid,
             assigned_to_agent_id=assigned_to_agent_id,
             domain_id=domain_id,
             priority=priority,
@@ -48,7 +50,11 @@ class TaskService:
         self.db.commit()
         self.db.refresh(task)
 
-        self._log_status_change(task.id, created_by_agent_id, None, TaskStatus.PENDING)
+        creator_id = created_by_admin_uuid or created_by_agent_id
+        if created_by_admin_uuid:
+            self._log_status_change(task.id, None, None, TaskStatus.PENDING, admin_uuid=created_by_admin_uuid)
+        else:
+            self._log_status_change(task.id, created_by_agent_id, None, TaskStatus.PENDING)
 
         return task
 
@@ -189,15 +195,17 @@ class TaskService:
     def _log_status_change(
         self,
         task_id: str,
-        agent_id: str,
+        agent_id: Optional[str],
         from_status: Optional[TaskStatus],
         to_status: TaskStatus,
         change_reason: Optional[str] = None,
+        admin_uuid: Optional[str] = None,
     ) -> TaskStatusLog:
         log = TaskStatusLog(
             id=str(uuid.uuid4()),
             task_id=task_id,
             agent_id=agent_id,
+            admin_uuid=admin_uuid,
             from_status=from_status.value if from_status else None,
             to_status=to_status.value,
             change_reason=change_reason,
@@ -206,3 +214,8 @@ class TaskService:
         self.db.commit()
         self.db.refresh(log)
         return log
+
+    def _is_valid_agent_uuid(self, uuid_str: str) -> bool:
+        """Check if uuid_str exists in agents table"""
+        from app.models.agent import Agent
+        return self.db.query(Agent).filter(Agent.id == uuid_str).first() is not None

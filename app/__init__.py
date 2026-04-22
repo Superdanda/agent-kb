@@ -33,30 +33,37 @@ def create_app() -> FastAPI:
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-    # Register API routers
-    from app.api.routes import agents, posts, assets, learning, admin_auth, domains, suggestions, agent_scheduler
-    from app.modules.task_board.routers import task_router, material_router, leaderboard_router, file_router, agent_task_router
+# Register API routers
+    from app.api.routes import agents, posts, assets, learning, admin_auth, domains, suggestions, agent_scheduler, skills
+    from app.api.routes.agent_registrations import router as agent_registrations_router
+    from app.api.routes.admin_agent_registrations import router as admin_agent_registrations_router
+    from app.api.routes.agent_tasks import router as agent_tasks_router
+    from app.api.routes.agent_scheduler import router as agent_scheduler_router
+    from app.api.routes.admin_agents import router as admin_agents_router
+    from app.modules.task_board.routers import task_router, material_router, leaderboard_router
     app.include_router(agents.router, prefix="/api")
     app.include_router(posts.router, prefix="/api")
     app.include_router(assets.router, prefix="/api")
     app.include_router(learning.router, prefix="/api")
     app.include_router(domains.router, prefix="/api")
     app.include_router(suggestions.router, prefix="/api")
-    app.include_router(agent_scheduler.router, prefix="/api")
+    app.include_router(skills.router, prefix="/api")
+    app.include_router(skills.admin_router, prefix="/api")
+    app.include_router(agent_scheduler_router, prefix="/api")
+    app.include_router(admin_agents_router, prefix="/api")
+    app.include_router(agent_registrations_router, prefix="/api")
+    app.include_router(admin_agent_registrations_router, prefix="/api")
     app.include_router(task_router, prefix="/api")
     app.include_router(material_router, prefix="/api")
     app.include_router(leaderboard_router, prefix="/api")
-    app.include_router(file_router, prefix="/api")
-    app.include_router(agent_task_router, prefix="/api")
     app.include_router(admin_auth.router)
+    app.include_router(agent_tasks_router, prefix="/api")
 
     # Register page routes
     from app.web.routes.pages import router as pages_router
     from app.web.routes.admin_pages import router as admin_pages_router
-    from app.web.routes.task_board_pages import router as task_board_pages_router
     app.include_router(pages_router)
     app.include_router(admin_pages_router)
-    app.include_router(task_board_pages_router)
 
     return app
 

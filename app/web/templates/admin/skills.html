@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}管理 SKILL{% endblock %}
+{% block content %}
+<div class="dashboard-header animate-fade-in-up">
+    <div class="dashboard-title-row">
+        <div>
+            <h1 class="page-title">SKILL 管理</h1>
+            <p class="page-subtitle">管理推荐标记、上下线状态和版本可见性</p>
+        </div>
+    </div>
+</div>
+
+<form method="get" class="filter-bar animate-fade-in-up animate-delay-1">
+    <input type="text" name="keyword" class="form-control-hermes filter-input" placeholder="搜索关键字" value="{{ keyword }}">
+    <input type="text" name="tag" class="form-control-hermes filter-input" placeholder="标签，逗号分隔" value="{{ tag }}">
+    <select name="status_filter" class="form-select-hermes filter-input">
+        <option value="">全部状态</option>
+        <option value="ACTIVE" {% if status_filter == 'ACTIVE' %}selected{% endif %}>ACTIVE</option>
+        <option value="HIDDEN" {% if status_filter == 'HIDDEN' %}selected{% endif %}>HIDDEN</option>
+    </select>
+    <button type="submit" class="btn-hermes-primary">筛选</button>
+</form>
+
+<div class="skills-admin-list">
+    {% for skill in skills %}
+    <div class="card-hermes skill-admin-card animate-fade-in-up animate-delay-{{ ((loop.index % 4) + 2) }}">
+        <div class="skill-admin-head">
+            <div>
+                <div class="slug-line">{{ skill.slug }}</div>
+                <h3>{{ skill.name }}</h3>
+                <p class="text-hermes-secondary mb-2">{{ skill.summary or '暂无简介' }}</p>
+            </div>
+            <div class="text-hermes-muted">{% if skill.current_version %}当前版本 v{{ skill.current_version.version }}{% endif %}</div>
+        </div>
+        <form method="post" action="/admin/skills/{{ skill.id }}/flags" class="flag-form">
+            <label><input type="checkbox" name="is_recommended" {% if skill.is_recommended %}checked{% endif %}> 推荐</label>
+            <label><input type="checkbox" name="is_important" {% if skill.is_important %}checked{% endif %}> 重要</label>
+            <label><input type="checkbox" name="is_official" {% if skill.is_official %}checked{% endif %}> 官方</label>
+            <select name="status_value" class="form-select-hermes admin-select">
+                <option value="ACTIVE" {% if skill.status == 'ACTIVE' %}selected{% endif %}>ACTIVE</option>
+                <option value="HIDDEN" {% if skill.status == 'HIDDEN' %}selected{% endif %}>HIDDEN</option>
+            </select>
+            <button type="submit" class="btn-hermes-secondary">保存</button>
+        </form>
+
+        <div class="version-admin-list">
+            {% for version in skill.version_items %}
+            <form method="post" action="/admin/skills/versions/{{ version.id }}/status" class="version-row">
+                <div>
+                    <strong>v{{ version.version }}</strong>
+                    <span class="text-hermes-muted">{{ version.release_note or '无更新说明' }}</span>
+                </div>
+                <div class="version-actions">
+                    <select name="status_value" class="form-select-hermes admin-select">
+                        <option value="ACTIVE" {% if version.status == 'ACTIVE' %}selected{% endif %}>ACTIVE</option>
+                        <option value="HIDDEN" {% if version.status == 'HIDDEN' %}selected{% endif %}>HIDDEN</option>
+                    </select>
+                    <button type="submit" class="btn-hermes-secondary">更新版本</button>
+                </div>
+            </form>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="card-hermes">暂无 SKILL。</div>
+    {% endfor %}
+</div>
+
+<style>
+.filter-bar { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.filter-input { flex: 1; min-width: 180px; }
+.skills-admin-list { display: flex; flex-direction: column; gap: 1rem; }
+.skill-admin-head { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.slug-line { color: var(--text-muted); font-family: var(--font-mono); font-size: 0.8rem; }
+.flag-form, .version-row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+.version-admin-list { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-subtle); }
+.version-row { justify-content: space-between; padding: 0.75rem 0; }
+.version-actions { display: flex; gap: 0.75rem; align-items: center; }
+.admin-select { min-width: 140px; }
+@media (max-width: 768px) {
+    .skill-admin-head, .version-row { flex-direction: column; align-items: flex-start; }
+    .version-actions { width: 100%; }
+}
+</style>
+{% endblock %}

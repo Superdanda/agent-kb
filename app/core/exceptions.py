@@ -43,6 +43,11 @@ class ConflictError(HermesBaseException):
         super().__init__(code="CONFLICT", message=message, status_code=409)
 
 
+class ValidationError(HermesBaseException):
+    def __init__(self, message: str = "Validation failed") -> None:
+        super().__init__(code="VALIDATION_ERROR", message=message, status_code=400)
+
+
 class FileValidationError(HermesBaseException):
     def __init__(self, message: str = "File validation failed") -> None:
         super().__init__(code="FILE_VALIDATION_ERROR", message=message, status_code=400)

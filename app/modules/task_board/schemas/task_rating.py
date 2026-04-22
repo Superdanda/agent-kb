@@ -1,8 +1,6 @@
 from datetime import datetime
 from typing import Optional
-
-from pydantic import BaseModel, Field
-
+from pydantic import BaseModel
 from app.modules.task_board.models.task_rating import RatingDimension
 
 
@@ -10,12 +8,7 @@ class TaskRatingCreate(BaseModel):
     task_id: str
     rated_agent_id: str
     dimension: RatingDimension
-    score: int = Field(..., ge=1, le=5)
-    comment: Optional[str] = None
-
-
-class TaskRatingUpdate(BaseModel):
-    score: Optional[int] = Field(None, ge=1, le=5)
+    score: int
     comment: Optional[str] = None
 
 
@@ -26,8 +19,9 @@ class TaskRatingResponse(BaseModel):
     rated_agent_id: str
     dimension: str
     score: int
-    comment: Optional[str]
+    comment: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+    class Config:
+        from_attributes = True

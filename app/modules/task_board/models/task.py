@@ -39,7 +39,8 @@ class Task(Base):
     id = Column(CHAR(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     title = Column(String(512), nullable=False)
     description = Column(Text, nullable=True)
-    created_by_agent_id = Column(CHAR(36), ForeignKey("agents.id"), nullable=False, index=True)
+    created_by_agent_id = Column(CHAR(36), ForeignKey("agents.id"), nullable=True, index=True)
+    created_by_admin_uuid = Column(CHAR(36), nullable=True, index=True)
     assigned_to_agent_id = Column(CHAR(36), ForeignKey("agents.id"), nullable=True, index=True)
     domain_id = Column(CHAR(36), ForeignKey("knowledge_domains.id"), nullable=True, index=True)
     

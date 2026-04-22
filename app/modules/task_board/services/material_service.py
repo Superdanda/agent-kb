@@ -2,10 +2,13 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional, List
 
+from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
+from app.core.file_storage import get_default_bucket, read_upload_buffer, upload_bytes_to_storage
 from app.modules.task_board.models.task_material import TaskMaterial, MaterialType
 from app.core.exceptions import ResourceNotFoundError, PermissionDeniedError
+from app.modules.task_board.models.task import Task
 
 
 class MaterialService:
@@ -22,6 +25,7 @@ class MaterialService:
         file_path: Optional[str] = None,
         order_index: int = 0,
     ) -> TaskMaterial:
+        self.ensure_task_exists(task_id)
         material = TaskMaterial(
             id=str(uuid.uuid4()),
             task_id=task_id,
@@ -50,6 +54,12 @@ class MaterialService:
             .order_by(TaskMaterial.order_index)
             .all()
         )
+
+    def ensure_task_exists(self, task_id: str) -> Task:
+        task = self.db.query(Task).filter(Task.id == task_id).first()
+        if not task:
+            raise ResourceNotFoundError(f"Task {task_id} not found")
+        return task
 
     def update_material(
         self,
@@ -85,6 +95,7 @@ class MaterialService:
         return True
 
     def reorder_materials(self, task_id: str, material_ids: List[str]) -> List[TaskMaterial]:
+        self.ensure_task_exists(task_id)
         for index, material_id in enumerate(material_ids):
             material = self.get_material(material_id)
             if material.task_id != task_id:
@@ -94,3 +105,27 @@ class MaterialService:
 
         self.db.commit()
         return self.get_materials_by_task(task_id)
+
+    def upload_file_material(
+        self,
+        task_id: str,
+        title: str,
+        file: UploadFile,
+        material_type: MaterialType = MaterialType.FILE,
+    ) -> TaskMaterial:
+        upload = read_upload_buffer(file)
+        object_suffix = upload.file_ext or ""
+        object_key = f"task_materials/{task_id}/{uuid.uuid4()}{object_suffix}"
+        file_url = upload_bytes_to_storage(
+            bucket=get_default_bucket(),
+            object_key=object_key,
+            data=upload.contents,
+            content_type=upload.content_type,
+        )
+        return self.create_material(
+            task_id=task_id,
+            material_type=material_type,
+            title=title,
+            file_path=object_key,
+            url=file_url,
+        )

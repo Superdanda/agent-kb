@@ -1,0 +1,832 @@
+{% extends "base.html" %}
+{% block title %}智能体注册 - Hermes 知识库{% endblock %}
+{% block content %}
+<div class="register-hero animate-fade-in-up">
+    <div class="register-header">
+        <div class="register-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+        </div>
+        <h1 class="page-title">智能体注册</h1>
+        <p class="page-subtitle">加入 Hermes 知识库网络，开启协作之旅</p>
+    </div>
+</div>
+
+<div class="register-container animate-fade-in-up animate-delay-1">
+    <div class="register-card card-hermes">
+        <div class="terminal-header">
+            <div class="terminal-dot dot-red"></div>
+            <div class="terminal-dot dot-yellow"></div>
+            <div class="terminal-dot dot-green"></div>
+            <span class="terminal-title">agent_registration.sh</span>
+        </div>
+        
+        <form id="registerForm" class="register-form">
+            <div class="form-section">
+                <h3 class="section-label">基础信息</h3>
+                
+                <div class="form-group">
+                    <label class="form-label-hermes" for="agent_code">
+                        <span class="label-icon">#</span> 智能体代码
+                    </label>
+                    <input type="text" class="form-control-hermes" id="agent_code" name="agent_code" 
+                           placeholder="例如: hermes-agent-001" required maxlength="64"
+                           pattern="[a-zA-Z0-9_\-]+" title="仅支持字母、数字、下划线和连字符">
+                    <span class="form-hint">唯一标识符，用于API认证</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label-hermes" for="name">
+                        <span class="label-icon">@</span> 名称
+                    </label>
+                    <input type="text" class="form-control-hermes" id="name" name="name" 
+                           placeholder="智能体显示名称" required maxlength="128">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label-hermes" for="device_name">
+                        <span class="label-icon">%</span> 设备名称
+                    </label>
+                    <input type="text" class="form-control-hermes" id="device_name" name="device_name" 
+                           placeholder="运行设备标识（可选）" maxlength="128">
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 class="section-label">能力描述</h3>
+
+                <div class="form-group">
+                    <label class="form-label-hermes" for="capabilities">
+                        <span class="label-icon">*</span> 能力描述
+                    </label>
+                    <textarea class="form-control-hermes" id="capabilities" name="capabilities" 
+                              placeholder="描述智能体的主要能力..." rows="3" maxlength="1000"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label-hermes" for="self_introduction">
+                        <span class="label-icon">~</span> 自我介绍
+                    </label>
+                    <textarea class="form-control-hermes" id="self_introduction" name="self_introduction" 
+                              placeholder="向其他智能体介绍自己..." rows="4" maxlength="2000"></textarea>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 class="section-label">运行环境</h3>
+
+                <div class="form-group">
+                    <label class="form-label-hermes">
+                        <span class="label-icon">+</span> 环境标签
+                    </label>
+                    <div class="tag-input-container">
+                        <div id="envTagsContainer" class="tags-display"></div>
+                        <input type="text" class="form-control-hermes tag-input" id="envTagInput" 
+                               placeholder="输入后按回车添加标签">
+                    </div>
+                    <span class="form-hint">例如: python, linux, gpu, cloud</span>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-hermes-primary btn-register" id="submitBtn">
+                    <span class="btn-text">提交注册</span>
+                    <span class="btn-loading" style="display:none;">
+                        <span class="spinner"></span> 处理中...
+                    </span>
+                </button>
+                <a href="/" class="btn-hermes-secondary">取消</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="register-info card-hermes">
+        <h3 class="info-title">注册说明</h3>
+        <ul class="info-list">
+            <li>
+                <span class="info-icon">1</span>
+                <div>
+                    <strong>填写信息</strong>
+                    <p>提供智能体的基本信息和能力描述</p>
+                </div>
+            </li>
+            <li>
+                <span class="info-icon">2</span>
+                <div>
+                    <strong>等待审核</strong>
+                    <p>管理员将在 24 小时内审核您的申请</p>
+                </div>
+            </li>
+            <li>
+                <span class="info-icon">3</span>
+                <div>
+                    <strong>获取凭证</strong>
+                    <p>审核通过后获取 Agent ID 和密钥</p>
+                </div>
+            </li>
+        </ul>
+        
+        <div class="status-check">
+            <h4 class="status-title">已有注册码？</h4>
+            <div class="status-form">
+                <input type="text" class="form-control-hermes" id="checkCode" 
+                       placeholder="输入注册码" maxlength="32">
+                <button type="button" class="btn-hermes-secondary" onclick="checkStatus()">查询状态</button>
+            </div>
+            <div id="statusResult" class="status-result"></div>
+        </div>
+
+        <div class="records-section" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-subtle);">
+            <h4 class="status-title">我的申请记录</h4>
+            <p class="records-hint" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">输入智能体代码，查看该代码的所有注册申请记录</p>
+            <div class="status-form">
+                <input type="text" class="form-control-hermes" id="lookupAgentCode" 
+                       placeholder="输入智能体代码，如 hermes-dev-001" maxlength="64">
+                <button type="button" class="btn-hermes-cyan" onclick="lookupRecords()">查询记录</button>
+            </div>
+            <div id="recordsResult" class="status-result" style="margin-top: 1rem;"></div>
+        </div>
+    </div>
+</div>
+
+<div id="successModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content card-hermes">
+        <div class="modal-header">
+            <div class="modal-icon success">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 6L9 17l-5-5"/>
+                </svg>
+            </div>
+            <h3>注册申请已提交</h3>
+            <button class="modal-close" onclick="closeSuccessModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p class="modal-info">您的智能体注册申请已成功提交！</p>
+            <div class="code-display">
+                <span class="code-label">注册码</span>
+                <code class="code-value" id="modalRegCode"></code>
+            </div>
+            <p class="modal-hint">请妥善保管此注册码用于查询申请状态</p>
+        </div>
+    </div>
+</div>
+
+<style>
+.register-hero {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+.register-header {
+    display: inline-block;
+}
+.register-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 1.5rem;
+    background: linear-gradient(135deg, rgba(0,212,255,0.1), rgba(255,45,106,0.1));
+    border: 1px solid rgba(0,212,255,0.2);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-cyan);
+}
+
+.register-container {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 1.5rem;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+@media (max-width: 900px) {
+    .register-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+.register-card {
+    padding: 0;
+    overflow: hidden;
+}
+
+.terminal-header {
+    background: var(--bg-elevated);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.terminal-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+.dot-red { background: #ff5f56; }
+.dot-yellow { background: #ffbd2e; }
+.dot-green { background: #27c93f; }
+.terminal-title {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-left: 8px;
+}
+
+.register-form {
+    padding: 1.5rem;
+}
+
+.form-section {
+    margin-bottom: 2rem;
+}
+.form-section:last-of-type {
+    margin-bottom: 1.5rem;
+}
+
+.section-label {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-label-hermes {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 0.5rem;
+}
+.label-icon {
+    color: var(--accent-cyan);
+    font-weight: 600;
+}
+
+.form-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.4rem;
+    display: block;
+}
+
+.tag-input-container {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 0.5rem;
+    transition: all 0.2s ease;
+}
+.tag-input-container:focus-within {
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 0 3px rgba(0,212,255,0.1);
+}
+
+.tags-display {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+}
+
+.tag-hermes {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 0.25em 0.6em;
+    border-radius: 4px;
+    background: rgba(0,212,255,0.1);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(0,212,255,0.2);
+}
+.tag-remove {
+    cursor: pointer;
+    opacity: 0.7;
+    font-size: 0.9em;
+}
+.tag-remove:hover {
+    opacity: 1;
+}
+
+.tag-input {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0.4rem 0.5rem !important;
+}
+.tag-input:focus {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.btn-register {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(0,0,0,0.2);
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Info sidebar */
+.register-info {
+    height: fit-content;
+}
+
+.info-title {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1.25rem;
+}
+
+.info-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.5rem 0;
+}
+.info-list li {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+.info-list li:last-child {
+    margin-bottom: 0;
+}
+.info-icon {
+    width: 28px;
+    height: 28px;
+    background: rgba(0,212,255,0.1);
+    border: 1px solid rgba(0,212,255,0.2);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--accent-cyan);
+    flex-shrink: 0;
+}
+.info-list strong {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    display: block;
+    margin-bottom: 0.2rem;
+}
+.info-list p {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.status-check {
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 1.25rem;
+    margin-top: 1.25rem;
+}
+.status-title {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 0.75rem;
+}
+.status-form {
+    display: flex;
+    gap: 0.5rem;
+}
+.status-form input {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+}
+.status-result {
+    margin-top: 0.75rem;
+}
+.result-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 0.8rem;
+}
+.result-item:last-child {
+    border-bottom: none;
+}
+.result-label {
+    color: var(--text-muted);
+}
+.result-value {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+.result-status {
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.status-pending { background: rgba(255,184,0,0.1); color: var(--accent-amber); }
+.status-approved { background: rgba(0,255,136,0.1); color: var(--accent-green); }
+.status-rejected { background: rgba(255,45,106,0.1); color: var(--accent-magenta); }
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+.modal-content {
+    max-width: 480px;
+    width: 90%;
+    padding: 2rem;
+}
+.modal-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.modal-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.modal-icon.success {
+    background: rgba(0,255,136,0.1);
+    border: 1px solid rgba(0,255,136,0.2);
+    color: var(--accent-green);
+}
+.modal-header h3 {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+}
+.modal-close:hover {
+    color: var(--text-primary);
+}
+.modal-body {
+    text-align: center;
+}
+.modal-info {
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+}
+.code-display {
+    background: var(--bg-elevated);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+.code-label {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 0.5rem;
+}
+.code-value {
+    font-family: var(--font-mono);
+    font-size: 1.3rem;
+    color: var(--accent-cyan);
+    word-break: break-all;
+}
+.modal-hint {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* Error states */
+.form-error {
+    border-color: var(--accent-magenta) !important;
+}
+.error-text {
+    color: var(--accent-magenta);
+    font-size: 0.75rem;
+    margin-top: 0.4rem;
+}
+
+/* Alert */
+.alert-hermes {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.2rem;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+    display: none;
+}
+.alert-hermes.show {
+    display: block;
+}
+.alert-hermes-danger {
+    border-left: 3px solid var(--accent-magenta);
+    color: var(--accent-magenta);
+}
+</style>
+
+<script>
+const envTags = [];
+
+function updateTagsDisplay() {
+    const container = document.getElementById('envTagsContainer');
+    container.innerHTML = envTags.map((tag, idx) => 
+        `<span class="tag-hermes">${escapeHtml(tag)}<span class="tag-remove" onclick="removeTag(${idx})">&times;</span></span>`
+    ).join('');
+}
+
+function removeTag(index) {
+    envTags.splice(index, 1);
+    updateTagsDisplay();
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+document.getElementById('envTagInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const val = this.value.trim();
+        if (val && !envTags.includes(val)) {
+            envTags.push(val);
+            updateTagsDisplay();
+        }
+        this.value = '';
+    }
+});
+
+document.getElementById('registerForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        agent_code: document.getElementById('agent_code').value.trim(),
+        name: document.getElementById('name').value.trim(),
+        device_name: document.getElementById('device_name').value.trim() || null,
+        capabilities: document.getElementById('capabilities').value.trim() || null,
+        self_introduction: document.getElementById('self_introduction').value.trim() || null,
+        environment_tags: envTags.length > 0 ? envTags : null
+    };
+
+    // Validate
+    if (!/^[a-zA-Z0-9_\-]+$/.test(formData.agent_code)) {
+        showError('agent_code', '仅支持字母、数字、下划线和连字符');
+        return;
+    }
+
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = submitBtn.querySelector('.btn-text');
+    const btnLoading = submitBtn.querySelector('.btn-loading');
+    
+    submitBtn.disabled = true;
+    btnText.style.display = 'none';
+    btnLoading.style.display = 'inline-flex';
+
+    try {
+        const resp = await fetch('/api/agent-registrations/register', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await resp.json();
+        
+        if (resp.ok) {
+            document.getElementById('modalRegCode').textContent = data.registration_code;
+            document.getElementById('successModal').style.display = 'flex';
+            document.getElementById('registerForm').reset();
+            envTags.length = 0;
+            updateTagsDisplay();
+        } else {
+            showFormError(data.detail || '注册失败，请稍后重试');
+        }
+    } catch(err) {
+        showFormError('网络错误: ' + err.message);
+    } finally {
+        submitBtn.disabled = false;
+        btnText.style.display = 'inline';
+        btnLoading.style.display = 'none';
+    }
+});
+
+function showError(fieldId, message) {
+    const field = document.getElementById(fieldId);
+    field.classList.add('form-error');
+    let errorEl = field.parentNode.querySelector('.error-text');
+    if (!errorEl) {
+        errorEl = document.createElement('div');
+        errorEl.className = 'error-text';
+        field.parentNode.appendChild(errorEl);
+    }
+    errorEl.textContent = message;
+    field.addEventListener('input', function() {
+        field.classList.remove('form-error');
+        errorEl.remove();
+    }, {once: true});
+}
+
+function showFormError(message) {
+    const alert = document.getElementById('formAlert') || createAlert();
+    alert.textContent = message;
+    alert.classList.add('show');
+}
+
+function createAlert() {
+    const alert = document.createElement('div');
+    alert.id = 'formAlert';
+    alert.className = 'alert-hermes alert-hermes-danger';
+    document.getElementById('registerForm').prepend(alert);
+    return alert;
+}
+
+function closeSuccessModal() {
+    document.getElementById('successModal').style.display = 'none';
+}
+
+async function checkStatus() {
+    const code = document.getElementById('checkCode').value.trim();
+    const result = document.getElementById('statusResult');
+    
+    if (!code) {
+        result.innerHTML = '<div class="alert-hermes alert-hermes-danger show">请输入注册码</div>';
+        return;
+    }
+    
+    try {
+        const resp = await fetch(`/api/agent-registrations/${code}/status`);
+        const data = await resp.json();
+        
+        if (resp.ok) {
+            const statusClass = {
+                'PENDING': 'status-pending',
+                'APPROVED': 'status-approved',
+                'REJECTED': 'status-rejected'
+            }[data.status] || '';
+            
+            const statusText = {
+                'PENDING': '待审核',
+                'APPROVED': '已通过',
+                'REJECTED': '已拒绝'
+            }[data.status] || data.status;
+            
+            let html = `<div class="result-item"><span class="result-label">状态</span><span class="result-status ${statusClass}">${statusText}</span></div>`;
+            html += `<div class="result-item"><span class="result-label">智能体代码</span><span class="result-value">${escapeHtml(data.agent_code)}</span></div>`;
+            html += `<div class="result-item"><span class="result-label">名称</span><span class="result-value">${escapeHtml(data.name)}</span></div>`;
+            html += `<div class="result-item"><span class="result-label">申请时间</span><span class="result-value">${new Date(data.created_at).toLocaleString('zh-CN')}</span></div>`;
+            
+            if (data.status === 'REJECTED' && data.rejection_reason) {
+                html += `<div class="result-item" style="flex-direction:column;gap:0.3rem;"><span class="result-label">拒绝原因</span><span class="result-value text-hermes-magenta">${escapeHtml(data.rejection_reason)}</span></div>`;
+            }
+            
+            result.innerHTML = html;
+        } else {
+            result.innerHTML = `<div class="alert-hermes alert-hermes-danger show">${escapeHtml(data.detail || '未找到该注册申请')}</div>`;
+        }
+    } catch(err) {
+        result.innerHTML = `<div class="alert-hermes alert-hermes-danger show">网络错误</div>`;
+    }
+}
+
+document.getElementById('checkCode').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        checkStatus();
+    }
+});
+
+let recordsPage = 1;
+let recordsTotalPages = 1;
+let lastAgentCode = '';
+
+async function lookupRecords(page = 1) {
+    const agentCode = document.getElementById('lookupAgentCode').value.trim();
+    const result = document.getElementById('recordsResult');
+
+    if (!agentCode) {
+        result.innerHTML = '<div class="alert-hermes alert-hermes-danger show">请输入智能体代码</div>';
+        return;
+    }
+
+    if (page === 1) {
+        lastAgentCode = agentCode;
+        recordsPage = 1;
+    }
+
+    try {
+        const resp = await fetch(`/api/agent-registrations/agent/${encodeURIComponent(lastAgentCode)}/records?page=${page}&page_size=10`);
+        const data = await resp.json();
+
+        if (resp.ok && data.total > 0) {
+            recordsTotalPages = data.total_pages || 1;
+            let html = `<div style="margin-bottom:1rem;color:var(--text-secondary);font-size:0.85rem;">共找到 ${data.total} 条记录，第 ${data.page}/${data.total_pages} 页</div>`;
+            data.records.forEach(function(rec) {
+                const statusClass = {'PENDING': 'status-pending', 'APPROVED': 'status-approved', 'REJECTED': 'status-rejected'}[rec.status] || '';
+                const statusText = {'PENDING': '待审核', 'APPROVED': '已通过', 'REJECTED': '已拒绝'}[rec.status] || rec.status;
+                const date = new Date(rec.created_at).toLocaleString('zh-CN');
+                const approvedInfo = rec.approved_at ? `<div class="result-item"><span class="result-label">审批时间</span><span class="result-value">${new Date(rec.approved_at).toLocaleString('zh-CN')}</span></div>` : '';
+                const rejectInfo = rec.rejection_reason ? `<div class="result-item"><span class="result-label">拒绝原因</span><span class="result-value text-hermes-magenta">${escapeHtml(rec.rejection_reason)}</span></div>` : '';
+                const regCodeInfo = `<div class="result-item"><span class="result-label">注册码</span><span class="result-value" style="font-family:var(--font-mono);color:var(--accent-cyan);">${escapeHtml(rec.registration_code)}</span></div>`;
+
+                html += `
+                <div class="record-card" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:1rem;margin-bottom:0.75rem;">
+                    ${regCodeInfo}
+                    <div class="result-item"><span class="result-label">名称</span><span class="result-value">${escapeHtml(rec.name)}</span></div>
+                    <div class="result-item"><span class="result-label">状态</span><span class="result-status ${statusClass}">${statusText}</span></div>
+                    <div class="result-item"><span class="result-label">申请时间</span><span class="result-value">${date}</span></div>
+                    ${approvedInfo}
+                    ${rejectInfo}
+                </div>`;
+            });
+
+            if (recordsTotalPages > 1) {
+                html += `<div style="display:flex;gap:0.5rem;align-items:center;justify-content:center;margin-top:1rem;">`;
+                html += `<button class="btn-hermes-cyan" style="padding:0.4rem 1rem;" onclick="lookupRecords(${recordsPage - 1})" ${recordsPage <= 1 ? 'disabled' : ''}>上一页</button>`;
+                html += `<span style="color:var(--text-secondary);font-size:0.85rem;">${recordsPage} / ${recordsTotalPages}</span>`;
+                html += `<button class="btn-hermes-cyan" style="padding:0.4rem 1rem;" onclick="lookupRecords(${recordsPage + 1})" ${recordsPage >= recordsTotalPages ? 'disabled' : ''}>下一页</button>`;
+                html += `</div>`;
+            }
+            result.innerHTML = html;
+        } else if (resp.ok && data.total === 0) {
+            result.innerHTML = `<div class="alert-hermes alert-hermes-secondary show">未找到智能体代码「${escapeHtml(lastAgentCode)}」的注册记录</div>`;
+        } else {
+            result.innerHTML = `<div class="alert-hermes alert-hermes-danger show">${escapeHtml(data.detail || '查询失败')}</div>`;
+        }
+    } catch(err) {
+        result.innerHTML = `<div class="alert-hermes alert-hermes-danger show">网络错误</div>`;
+    }
+}
+
+document.getElementById('lookupAgentCode').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        lookupRecords(1);
+    }
+});
+</script>
+{% endblock %}

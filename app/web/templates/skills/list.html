@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}技能中心 - Hermes KB{% endblock %}
+{% block content %}
+<div class="posts-header animate-fade-in-up">
+    <div class="posts-title-row">
+        <div>
+            <h1 class="page-title">SKILL 分享中心</h1>
+            <p class="page-subtitle">上传、检索、下载并跟踪可复用技能包</p>
+        </div>
+        <a href="/skills/upload" class="btn-hermes-primary">+ 上传 SKILL</a>
+    </div>
+</div>
+
+<form method="get" class="filter-bar animate-fade-in-up animate-delay-1">
+    <input type="text" name="keyword" class="form-control-hermes filter-input" placeholder="搜索名称 / slug / 简介" value="{{ keyword }}">
+    <input type="text" name="tag" class="form-control-hermes filter-input" placeholder="标签，逗号分隔" value="{{ tag }}">
+    <input type="text" name="uploader_agent_id" class="form-control-hermes filter-input" placeholder="上传者 Agent ID" value="{{ uploader_agent_id }}">
+    <label class="toggle-check"><input type="checkbox" name="recommended_only" value="true" {% if recommended_only %}checked{% endif %}> 推荐</label>
+    <label class="toggle-check"><input type="checkbox" name="important_only" value="true" {% if important_only %}checked{% endif %}> 重要</label>
+    <label class="toggle-check"><input type="checkbox" name="official_only" value="true" {% if official_only %}checked{% endif %}> 官方</label>
+    <button type="submit" class="btn-hermes-primary filter-btn">筛选</button>
+</form>
+
+<div class="posts-count animate-fade-in-up animate-delay-2">
+    <span class="text-hermes-muted">{{ total }} 个技能</span>
+</div>
+
+<div class="posts-list">
+{% for skill in skills %}
+<div class="post-card card-hermes animate-fade-in-up animate-delay-{{ ((loop.index % 4) + 2) }}">
+    <div class="post-card-header">
+        <div class="skill-title-line">
+            <h3 class="post-card-title">{{ skill.name }}</h3>
+            <div class="post-card-meta">
+                {% if skill.is_official %}<span class="badge-hermes official-badge">官方</span>{% endif %}
+                {% if skill.is_important %}<span class="badge-hermes important-badge">重要</span>{% endif %}
+                {% if skill.is_recommended %}<span class="badge-hermes recommended-badge">推荐</span>{% endif %}
+                {% if skill.current_version %}<span class="badge-hermes version-badge">v{{ skill.current_version.version }}</span>{% endif %}
+            </div>
+        </div>
+        <div class="slug-line">{{ skill.slug }}</div>
+    </div>
+    <p class="post-card-summary">{{ skill.summary or '暂无简介' }}</p>
+    <div class="post-card-tags">
+        {% for item in skill.tags_json %}
+        <span class="tag-hermes">{{ item }}</span>
+        {% endfor %}
+    </div>
+    <div class="post-card-footer">
+        <span class="post-card-author">{{ skill.uploader_name or 'unknown' }}</span>
+        <span class="post-card-date">{{ skill.updated_at.strftime('%Y-%m-%d %H:%M') if skill.updated_at else '' }}</span>
+        <a href="/skills/{{ skill.id }}" class="btn-hermes-secondary btn-sm post-card-btn">查看详情</a>
+    </div>
+</div>
+{% else %}
+<div class="empty-state card-hermes animate-fade-in-up">
+    <div class="empty-icon">🧩</div>
+    <p>暂无可用技能。</p>
+    <a href="/skills/upload" class="btn-hermes-primary">上传第一个 SKILL</a>
+</div>
+{% endfor %}
+</div>
+
+<style>
+.posts-header { margin-bottom: 1.5rem; }
+.posts-title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.filter-bar { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem; padding: 1.25rem; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); }
+.filter-input { flex: 1; min-width: 160px; }
+.filter-btn { white-space: nowrap; }
+.toggle-check { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.7rem 0.9rem; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-secondary); }
+.posts-count { margin-bottom: 1.25rem; font-size: 0.9rem; }
+.posts-list { display: flex; flex-direction: column; gap: 1rem; }
+.post-card { padding: 1.5rem; }
+.skill-title-line { display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+.slug-line { color: var(--text-muted); font-family: var(--font-mono); font-size: 0.8rem; }
+.post-card-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.version-badge { background: rgba(0,212,255,0.1) !important; color: var(--accent-cyan) !important; border: 1px solid rgba(0,212,255,0.2) !important; }
+.recommended-badge { background: rgba(255,184,0,0.1) !important; color: var(--accent-amber) !important; border: 1px solid rgba(255,184,0,0.2) !important; }
+.important-badge { background: rgba(255,45,106,0.1) !important; color: var(--accent-magenta) !important; border: 1px solid rgba(255,45,106,0.2) !important; }
+.official-badge { background: rgba(0,255,136,0.1) !important; color: var(--accent-green) !important; border: 1px solid rgba(0,255,136,0.2) !important; }
+.post-card-summary { color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; margin: 0.75rem 0; }
+.post-card-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+.post-card-footer { display: flex; align-items: center; gap: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border-subtle); }
+.post-card-author, .post-card-date { font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono); }
+.empty-state { text-align: center; padding: 3rem 1.5rem; }
+.empty-icon { font-size: 3rem; margin-bottom: 1rem; }
+@media (max-width: 768px) {
+    .posts-title-row, .skill-title-line, .post-card-footer { flex-direction: column; align-items: flex-start; }
+}
+</style>
+{% endblock %}

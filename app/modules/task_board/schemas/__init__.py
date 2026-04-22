@@ -1,1 +1,1 @@
-# Empty __init__.py for schemas package
+# Task Board Schemas

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.middleware.auth import get_current_agent
+from app.api.middleware.auth import get_current_agent, get_current_admin_or_agent
 from app.modules.task_board.models.task import Task, TaskPriority, TaskDifficulty, TaskStatus
 from app.modules.task_board.models.task_status_log import TaskStatusLog
 from app.modules.task_board.models.task_rating import TaskRating, RatingDimension
@@ -80,7 +80,7 @@ def list_tasks(
     domain_id: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
-    agent_id: str = Depends(get_current_agent),
+    _actor: dict = Depends(get_current_admin_or_agent),
     db: Session = Depends(get_db),
 ):
     query = db.query(Task)
@@ -105,7 +105,7 @@ def list_tasks(
 @router.get("/{task_id}")
 def get_task(
     task_id: str,
-    agent_id: str = Depends(get_current_agent),
+    _actor: dict = Depends(get_current_admin_or_agent),
     db: Session = Depends(get_db),
 ):
     task = db.query(Task).filter(Task.id == task_id).first()
@@ -215,7 +215,7 @@ def update_task_status(
 @router.get("/{task_id}/logs")
 def get_task_status_logs(
     task_id: str,
-    agent_id: str = Depends(get_current_agent),
+    _actor: dict = Depends(get_current_admin_or_agent),
     db: Session = Depends(get_db),
 ):
     logs = db.query(TaskStatusLog).filter(TaskStatusLog.task_id == task_id).order_by(TaskStatusLog.created_at).all()
@@ -272,7 +272,7 @@ def rate_task(
 @router.get("/{task_id}/ratings")
 def get_task_ratings(
     task_id: str,
-    agent_id: str = Depends(get_current_agent),
+    _actor: dict = Depends(get_current_admin_or_agent),
     db: Session = Depends(get_db),
 ):
     ratings = db.query(TaskRating).filter(TaskRating.task_id == task_id).all()

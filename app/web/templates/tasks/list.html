@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+{% block title %}任务面板 - Hermes KB{% endblock %}
+{% block content %}
+<div class="tasks-shell">
+    <section class="tasks-hero card-hermes">
+        <div>
+            <p class="eyebrow">Task Board</p>
+            <h2 class="mb-2">任务面板</h2>
+            <p class="hero-copy">把任务按状态、优先级和执行人组织起来，管理员和 Agent 都能快速看清当前节奏。</p>
+        </div>
+        <div class="hero-stats">
+            <div class="stat-chip">
+                <span class="stat-label">任务总数</span>
+                <strong>{{ total }}</strong>
+            </div>
+            {% if request.headers.get('x-agent-id') or request.cookies.get('agent_id') %}
+            <div class="stat-chip stat-chip-secondary">
+                <span class="stat-label">当前 Agent</span>
+                <strong>{{ request.headers.get('x-agent-id') or request.cookies.get('agent_id') }}</strong>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="tasks-toolbar card-hermes">
+        <form method="get" class="tasks-filter-grid">
+            <div>
+                <label class="filter-label">状态</label>
+                <select name="status" class="form-select form-select-hermes">
+                    <option value="">全部状态</option>
+                    <option value="PENDING" {% if status_filter=='PENDING' %}selected{% endif %}>待处理</option>
+                    <option value="UNCLAIMED" {% if status_filter=='UNCLAIMED' %}selected{% endif %}>未认领</option>
+                    <option value="IN_PROGRESS" {% if status_filter=='IN_PROGRESS' %}selected{% endif %}>进行中</option>
+                    <option value="SUBMITTED" {% if status_filter=='SUBMITTED' %}selected{% endif %}>已提交</option>
+                    <option value="REVIEW" {% if status_filter=='REVIEW' %}selected{% endif %}>审核中</option>
+                    <option value="CONFIRMED" {% if status_filter=='CONFIRMED' %}selected{% endif %}>已确认</option>
+                    <option value="COMPLETED" {% if status_filter=='COMPLETED' %}selected{% endif %}>已完成</option>
+                    <option value="CANCELLED" {% if status_filter=='CANCELLED' %}selected{% endif %}>已取消</option>
+                </select>
+            </div>
+            <div>
+                <label class="filter-label">优先级</label>
+                <select name="priority" class="form-select form-select-hermes">
+                    <option value="">全部优先级</option>
+                    <option value="LOW" {% if priority=='LOW' %}selected{% endif %}>低</option>
+                    <option value="MEDIUM" {% if priority=='MEDIUM' %}selected{% endif %}>中</option>
+                    <option value="HIGH" {% if priority=='HIGH' %}selected{% endif %}>高</option>
+                    <option value="URGENT" {% if priority=='URGENT' %}selected{% endif %}>紧急</option>
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn btn-hermes-primary">筛选任务</button>
+                {% if is_admin %}
+                <a href="/tasks/new" class="btn btn-hermes-success">创建任务</a>
+                {% endif %}
+            </div>
+        </form>
+    </section>
+
+    <section class="card-hermes task-table-card">
+        <div class="table-responsive">
+            <table class="table table-hermes task-table">
+                <thead>
+                    <tr>
+                        <th>标题</th>
+                        <th>状态</th>
+                        <th>优先级</th>
+                        <th>积分</th>
+                        <th>指派给</th>
+                        <th>创建时间</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in tasks %}
+                    <tr class="task-row">
+                        <td>
+                            <a class="task-link" href="/tasks/{{ task.id }}">{{ task.title }}</a>
+                            <div class="task-meta">
+                                {% if task.difficulty %}
+                                <span class="mini-pill">
+                                    {% if task.difficulty.value=='EASY' %}简单
+                                    {% elif task.difficulty.value=='MEDIUM' %}中等
+                                    {% elif task.difficulty.value=='HARD' %}困难
+                                    {% elif task.difficulty.value=='EXPERT' %}专家
+                                    {% else %}{{ task.difficulty.value }}{% endif %}
+                                </span>
+                                {% endif %}
+                                {% if task.tags_json %}
+                                <span class="task-tags">{{ task.tags_json | join(' · ') }}</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="tone-badge {% if task.status.value=='COMPLETED' %}tone-success{% elif task.status.value=='IN_PROGRESS' %}tone-info{% elif task.status.value=='CANCELLED' %}tone-danger{% else %}tone-warn{% endif %}">
+                                {% if task.status.value=='PENDING' %}待处理
+                                {% elif task.status.value=='UNCLAIMED' %}未认领
+                                {% elif task.status.value=='IN_PROGRESS' %}进行中
+                                {% elif task.status.value=='SUBMITTED' %}已提交
+                                {% elif task.status.value=='REVIEW' %}审核中
+                                {% elif task.status.value=='CONFIRMED' %}已确认
+                                {% elif task.status.value=='COMPLETED' %}已完成
+                                {% elif task.status.value=='CANCELLED' %}已取消
+                                {% else %}{{ task.status.value }}{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="tone-badge {% if task.priority.value=='URGENT' %}tone-danger{% elif task.priority.value=='HIGH' %}tone-warn{% elif task.priority.value=='MEDIUM' %}tone-info{% else %}tone-success{% endif %}">
+                                {% if task.priority.value=='LOW' %}低{% elif task.priority.value=='MEDIUM' %}中{% elif task.priority.value=='HIGH' %}高{% elif task.priority.value=='URGENT' %}紧急{% else %}{{ task.priority.value }}{% endif %}
+                            </span>
+                        </td>
+                        <td><strong>{{ task.points }}</strong></td>
+                        <td>{{ task.assigned_to.name if task.assigned_to else '未指派' }}</td>
+                        <td>{{ task.created_at.strftime('%Y-%m-%d') if task.created_at else '无' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="empty-state">未找到符合条件的任务</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if total > size %}
+        <nav>
+            <ul class="pagination pagination-hermes">
+                {% if page > 1 %}
+                <li class="page-item"><a class="page-link" href="?page={{ page - 1 }}&status={{ status_filter or '' }}&priority={{ priority or '' }}">上一页</a></li>
+                {% endif %}
+                <li class="page-item active"><span class="page-link">第 {{ page }} 页</span></li>
+                {% if page * size < total %}
+                <li class="page-item"><a class="page-link" href="?page={{ page + 1 }}&status={{ status_filter or '' }}&priority={{ priority or '' }}">下一页</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .tasks-shell {
+        display: grid;
+        gap: 1.5rem;
+    }
+
+    .tasks-hero,
+    .tasks-toolbar,
+    .task-table-card {
+        border: 1px solid rgba(115, 151, 212, 0.18);
+        background:
+            radial-gradient(circle at top right, rgba(61, 129, 255, 0.18), transparent 28%),
+            linear-gradient(180deg, rgba(14, 23, 37, 0.96), rgba(8, 14, 24, 0.98));
+        box-shadow: 0 26px 60px rgba(3, 8, 18, 0.35);
+    }
+
+    .tasks-hero {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+
+    .eyebrow {
+        margin: 0 0 0.4rem;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-size: 0.72rem;
+        color: rgba(143, 184, 255, 0.72);
+    }
+
+    .hero-copy {
+        max-width: 760px;
+        margin: 0;
+        color: rgba(220, 231, 248, 0.74);
+    }
+
+    .hero-stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        justify-content: flex-end;
+    }
+
+    .stat-chip {
+        min-width: 140px;
+        padding: 0.95rem 1rem;
+        border-radius: 18px;
+        border: 1px solid rgba(120, 211, 255, 0.2);
+        background: rgba(8, 18, 31, 0.56);
+        backdrop-filter: blur(8px);
+    }
+
+    .stat-chip-secondary {
+        max-width: 320px;
+    }
+
+    .stat-label,
+    .filter-label {
+        display: block;
+        margin-bottom: 0.35rem;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: rgba(173, 190, 214, 0.76);
+    }
+
+    .stat-chip strong {
+        color: #f5f8ff;
+        word-break: break-all;
+    }
+
+    .tasks-filter-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 220px)) minmax(0, 1fr);
+        gap: 1rem;
+        align-items: end;
+    }
+
+    .filter-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.8rem;
+        flex-wrap: wrap;
+    }
+
+    .task-table {
+        margin-bottom: 0;
+        color: #eaf1ff;
+        --bs-table-bg: transparent;
+        --bs-table-striped-bg: transparent;
+        --bs-table-hover-bg: rgba(82, 135, 242, 0.08);
+        --bs-table-border-color: rgba(130, 158, 205, 0.14);
+    }
+
+    .task-table thead th {
+        border-bottom-width: 1px;
+        color: rgba(175, 192, 219, 0.8);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.76rem;
+        font-weight: 600;
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+
+    .task-row td {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+        vertical-align: middle;
+        background: transparent;
+    }
+
+    .task-link {
+        color: #f7fbff;
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .task-link:hover {
+        color: #9bd0ff;
+    }
+
+    .task-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.45rem;
+        align-items: center;
+    }
+
+    .mini-pill,
+    .tone-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.28rem 0.7rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        font-size: 0.82rem;
+    }
+
+    .mini-pill {
+        background: rgba(238, 244, 255, 0.08);
+        border-color: rgba(194, 210, 235, 0.15);
+        color: rgba(230, 237, 249, 0.86);
+    }
+
+    .task-tags {
+        color: rgba(161, 185, 221, 0.78);
+        font-size: 0.85rem;
+    }
+
+    .tone-success {
+        color: #8ff4c0;
+        background: rgba(27, 109, 71, 0.22);
+        border-color: rgba(87, 229, 165, 0.24);
+    }
+
+    .tone-info {
+        color: #9edfff;
+        background: rgba(13, 92, 132, 0.24);
+        border-color: rgba(103, 198, 255, 0.24);
+    }
+
+    .tone-warn {
+        color: #ffd28c;
+        background: rgba(128, 84, 17, 0.22);
+        border-color: rgba(255, 194, 92, 0.22);
+    }
+
+    .tone-danger {
+        color: #ffb6b3;
+        background: rgba(121, 26, 42, 0.22);
+        border-color: rgba(255, 122, 130, 0.22);
+    }
+
+    .empty-state {
+        padding: 3rem 1rem !important;
+        text-align: center;
+        color: rgba(176, 193, 216, 0.72);
+    }
+
+    @media (max-width: 991px) {
+        .tasks-hero {
+            flex-direction: column;
+        }
+
+        .hero-stats {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .tasks-filter-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .filter-actions {
+            justify-content: flex-start;
+        }
+    }
+</style>
+{% endblock %}

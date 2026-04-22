@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block title %}任务详情 - Hermes KB{% endblock %}
+{% block content %}
+<div class="task-detail-shell">
+    <section class="detail-hero card-hermes">
+        <div>
+            <p class="eyebrow">Task Detail</p>
+            <h2 class="mb-2">{{ task.title }}</h2>
+            <div class="hero-badges">
+                <span class="tone-badge {% if task.status.value=='COMPLETED' %}tone-success{% elif task.status.value=='IN_PROGRESS' %}tone-info{% elif task.status.value=='CANCELLED' %}tone-danger{% else %}tone-warn{% endif %}">
+                    {% if task.status.value=='PENDING' %}待处理
+                    {% elif task.status.value=='UNCLAIMED' %}未认领
+                    {% elif task.status.value=='IN_PROGRESS' %}进行中
+                    {% elif task.status.value=='SUBMITTED' %}已提交
+                    {% elif task.status.value=='REVIEW' %}审核中
+                    {% elif task.status.value=='CONFIRMED' %}已确认
+                    {% elif task.status.value=='COMPLETED' %}已完成
+                    {% elif task.status.value=='CANCELLED' %}已取消
+                    {% else %}{{ task.status.value }}{% endif %}
+                </span>
+                <span class="tone-badge {% if task.priority.value=='URGENT' %}tone-danger{% elif task.priority.value=='HIGH' %}tone-warn{% elif task.priority.value=='MEDIUM' %}tone-info{% else %}tone-success{% endif %}">
+                    优先级：
+                    {% if task.priority.value=='LOW' %}低{% elif task.priority.value=='MEDIUM' %}中{% elif task.priority.value=='HIGH' %}高{% elif task.priority.value=='URGENT' %}紧急{% else %}{{ task.priority.value }}{% endif %}
+                </span>
+                {% if task.difficulty %}
+                <span class="mini-pill">
+                    难度：
+                    {% if task.difficulty.value=='EASY' %}简单
+                    {% elif task.difficulty.value=='MEDIUM' %}中等
+                    {% elif task.difficulty.value=='HARD' %}困难
+                    {% elif task.difficulty.value=='EXPERT' %}专家
+                    {% else %}{{ task.difficulty.value }}{% endif %}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="hero-actions">
+            <a href="/tasks" class="btn btn-hermes-secondary">返回任务列表</a>
+            {% if is_admin %}
+            <a href="/tasks/new" class="btn btn-hermes-primary">创建新任务</a>
+            {% endif %}
+        </div>
+    </section>
+
+    <div class="detail-grid">
+        <section class="card-hermes detail-panel">
+            <h3>任务说明</h3>
+            <p class="description-text">{{ task.description or '暂无描述。' }}</p>
+
+            <div class="info-grid">
+                <div class="info-item">
+                    <span>创建者</span>
+                    <strong>{{ creator_label }}</strong>
+                </div>
+                <div class="info-item">
+                    <span>负责人</span>
+                    <strong>{{ task.assigned_to.name if task.assigned_to else '未指派' }}</strong>
+                </div>
+                <div class="info-item">
+                    <span>积分</span>
+                    <strong>{{ task.points }}</strong>
+                </div>
+                <div class="info-item">
+                    <span>预计工时</span>
+                    <strong>{{ task.estimated_hours if task.estimated_hours is not none else '未设置' }}</strong>
+                </div>
+                <div class="info-item">
+                    <span>截止日期</span>
+                    <strong>{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '未设置' }}</strong>
+                </div>
+                <div class="info-item">
+                    <span>创建时间</span>
+                    <strong>{{ task.created_at.strftime('%Y-%m-%d %H:%M') if task.created_at else '无' }}</strong>
+                </div>
+            </div>
+
+            {% if task.tags_json %}
+            <div class="tag-row">
+                {% for tag in task.tags_json %}
+                <span class="mini-pill">{{ tag }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="card-hermes detail-panel">
+            <h3>任务材料</h3>
+            <div class="detail-list">
+                {% for material in materials %}
+                <article class="list-item">
+                    <div>
+                        <strong>{{ material.title }}</strong>
+                        <p class="mb-0">{{ material.material_type.value if material.material_type else 'FILE' }}</p>
+                    </div>
+                    {% if material.url %}
+                    <a href="{{ material.url }}" target="_blank" rel="noopener noreferrer">打开链接</a>
+                    {% elif material.file_path %}
+                    <span class="muted-text">{{ material.file_path }}</span>
+                    {% else %}
+                    <span class="muted-text">无附加路径</span>
+                    {% endif %}
+                </article>
+                {% else %}
+                <p class="muted-text mb-0">暂无材料。</p>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="card-hermes detail-panel">
+            <h3>状态流转</h3>
+            <div class="detail-list">
+                {% for log in logs %}
+                <article class="list-item">
+                    <div>
+                        <strong>{{ log.to_status }}</strong>
+                        <p class="mb-0">
+                            {% if log.agent %}
+                            {{ log.agent.name }}
+                            {% elif log.admin_uuid %}
+                            管理员 {{ log.admin_uuid }}
+                            {% else %}
+                            系统
+                            {% endif %}
+                        </p>
+                    </div>
+                    <span class="muted-text">{{ log.created_at.strftime('%Y-%m-%d %H:%M') if log.created_at else '' }}</span>
+                </article>
+                {% else %}
+                <p class="muted-text mb-0">暂无状态记录。</p>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="card-hermes detail-panel">
+            <h3>任务评分</h3>
+            <div class="detail-list">
+                {% for rating in ratings %}
+                <article class="list-item">
+                    <div>
+                        <strong>{{ rating.dimension }}</strong>
+                        <p class="mb-0">{{ rating.comment or '无备注' }}</p>
+                    </div>
+                    <span class="tone-badge tone-info">{{ rating.score }}/5</span>
+                </article>
+                {% else %}
+                <p class="muted-text mb-0">暂无评分。</p>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .task-detail-shell {
+        display: grid;
+        gap: 1.5rem;
+    }
+
+    .detail-hero,
+    .detail-panel {
+        border: 1px solid rgba(118, 155, 215, 0.18);
+        background:
+            radial-gradient(circle at top right, rgba(73, 140, 255, 0.14), transparent 22%),
+            linear-gradient(180deg, rgba(14, 24, 40, 0.96), rgba(8, 14, 24, 0.98));
+        box-shadow: 0 24px 54px rgba(4, 10, 20, 0.34);
+    }
+
+    .detail-hero {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+
+    .eyebrow {
+        margin: 0 0 0.4rem;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-size: 0.72rem;
+        color: rgba(143, 184, 255, 0.72);
+    }
+
+    .hero-badges,
+    .hero-actions,
+    .tag-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+    }
+
+    .detail-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1.5rem;
+    }
+
+    .detail-panel h3 {
+        margin-bottom: 1rem;
+    }
+
+    .description-text {
+        color: rgba(228, 236, 248, 0.82);
+        line-height: 1.75;
+        white-space: pre-wrap;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.9rem;
+        margin: 1.2rem 0;
+    }
+
+    .info-item {
+        padding: 0.95rem 1rem;
+        border-radius: 16px;
+        background: rgba(239, 246, 255, 0.05);
+        border: 1px solid rgba(193, 212, 244, 0.1);
+    }
+
+    .info-item span,
+    .muted-text,
+    .list-item p {
+        color: rgba(176, 194, 220, 0.76);
+    }
+
+    .info-item span {
+        display: block;
+        margin-bottom: 0.35rem;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .detail-list {
+        display: grid;
+        gap: 0.8rem;
+    }
+
+    .list-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+        padding: 0.95rem 1rem;
+        border-radius: 16px;
+        background: rgba(239, 246, 255, 0.05);
+        border: 1px solid rgba(193, 212, 244, 0.1);
+    }
+
+    .mini-pill,
+    .tone-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        font-size: 0.82rem;
+    }
+
+    .mini-pill {
+        background: rgba(238, 244, 255, 0.08);
+        border-color: rgba(194, 210, 235, 0.15);
+        color: rgba(230, 237, 249, 0.86);
+    }
+
+    .tone-success {
+        color: #8ff4c0;
+        background: rgba(27, 109, 71, 0.22);
+        border-color: rgba(87, 229, 165, 0.24);
+    }
+
+    .tone-info {
+        color: #9edfff;
+        background: rgba(13, 92, 132, 0.24);
+        border-color: rgba(103, 198, 255, 0.24);
+    }
+
+    .tone-warn {
+        color: #ffd28c;
+        background: rgba(128, 84, 17, 0.22);
+        border-color: rgba(255, 194, 92, 0.22);
+    }
+
+    .tone-danger {
+        color: #ffb6b3;
+        background: rgba(121, 26, 42, 0.22);
+        border-color: rgba(255, 122, 130, 0.22);
+    }
+
+    @media (max-width: 991px) {
+        .detail-hero {
+            flex-direction: column;
+        }
+
+        .detail-grid,
+        .info-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .list-item {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
