@@ -7,9 +7,11 @@ from sqlalchemy import desc
 
 from app.core.database import get_db
 from app.api.middleware.auth import get_current_agent
-from app.modules.task_board.models.leaderboard import Leaderboard, LeaderboardPeriod
+from app.modules.task_board.models.leaderboard import LeaderboardPeriod
 from app.modules.task_board.models.task import Task, TaskStatus
 from app.modules.task_board.models.task_rating import TaskRating
+from pydantic import BaseModel
+from datetime import datetime as dt_type
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 

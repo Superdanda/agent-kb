@@ -1,6 +1,6 @@
 # Task Board 模块开发进度
 
-> 更新时间: 2026-04-21
+> 更新时间: 2026-04-22
 > 项目路径: `E:\code\hermes-knowledge-base` (WSL: `/mnt/e/code/hermes-knowledge-base`)
 
 ---
@@ -486,56 +486,56 @@ LeaderboardPeriod: "DAILY", "WEEKLY", "MONTHLY", "ALL_TIME"
 
 ## 五、工作阶段
 
-### 阶段 1: Schemas 创建 ✅ 已规划，未实施
+### 阶段 1: Schemas 创建 ✅ 已完成
 
-- [ ] 创建 `app/modules/task_board/schemas/` 目录
-- [ ] 创建 `task.py` - TaskCreate, TaskUpdate, TaskResponse, TaskListResponse
-- [ ] 创建 `task_material.py` - MaterialCreate, MaterialUpdate, MaterialResponse
-- [ ] 创建 `task_rating.py` - RatingCreate, RatingResponse
-- [ ] 创建 `leaderboard.py` - LeaderboardEntry, LeaderboardResponse, AgentStats
-- [ ] 创建 `task_status_log.py` - StatusLogResponse
-- [ ] 更新 routers 使用 schemas 替代直接返回 ORM 模型
+- [x] 创建 `app/modules/task_board/schemas/` 目录
+- [x] 创建 `task.py` - TaskCreate, TaskUpdate, TaskResponse, TaskListResponse
+- [x] 创建 `task_material.py` - MaterialCreate, MaterialUpdate, MaterialResponse
+- [x] 创建 `task_rating.py` - RatingCreate, RatingResponse
+- [x] 创建 `leaderboard.py` - LeaderboardEntry, LeaderboardResponse, AgentStats
+- [x] 创建 `task_status_log.py` - StatusLogResponse
+- [x] 更新 routers 使用 schemas 替代直接返回 ORM 模型
 
-### 阶段 2: 文件上传/下载功能
+### 阶段 2: 文件上传/下载功能 ✅ 已完成
 
-- [ ] TaskMaterial 模型添加 `is_result` 字段
-- [ ] 创建 `material_router.py` 的实际上传下载接口
-- [ ] 集成 `security_check.py` 到上传流程
-- [ ] 实现文件存储（本地 `uploads/` 目录）
-- [ ] 创建下载接口（流式响应）
-- [ ] 标记成果材料功能
-- [ ] 创建数据库迁移 `006_add_material_is_result.py`
+- [x] TaskMaterial 模型添加 `is_result` 字段
+- [x] 创建 `file_router.py` 的实际上传下载接口
+- [x] 集成 `security_check.py` 到上传流程
+- [x] 实现文件存储（本地 `uploads/` 目录）
+- [x] 创建下载接口（流式响应）
+- [x] 标记成果材料功能
+- [x] 创建数据库迁移 `006_add_material_is_result.py`
 
-### 阶段 3: Agent 定时任务查询
+### 阶段 3: Agent 定时任务查询 ✅ 已完成
 
-- [ ] 创建 `agent_scheduler.py` 定时任务
-- [ ] 实现轮询未承接任务逻辑
-- [ ] 实现 Agent 承接、提交成果、放弃任务的 API
-- [ ] 完善状态机流转
-- [ ] 添加确认/拒绝任务接口
+- [x] 创建 `agent_scheduler.py` 定时任务
+- [x] 实现轮询未承接任务逻辑
+- [x] 实现 Agent 承接、提交成果、放弃任务的 API
+- [x] 完善状态机流转
+- [x] 添加确认/拒绝任务接口
 
-### 阶段 4: 前端页面
+### 阶段 4: 前端页面 ✅ 已完成
 
-- [ ] 创建 `app/web/routes/task_board_pages.py`
-- [ ] 创建 `app/web/templates/task_board/` 模板
-- [ ] 任务列表页
-- [ ] 任务详情页（含成果下载）
-- [ ] 任务创建/编辑页
-- [ ] 排行榜页面
-- [ ] 在 `app/__init__.py` 注册页面路由
+- [x] 创建 `app/web/routes/task_board_pages.py`
+- [x] 创建 `app/web/templates/task_board/` 模板
+- [x] 任务列表页
+- [x] 任务详情页（含成果下载）
+- [x] 任务创建/编辑页
+- [x] 排行榜页面
+- [x] 在 `app/__init__.py` 注册页面路由
 
-### 阶段 5: 激励机制
+### 阶段 5: 激励机制 ✅ 已完成
 
-- [ ] 实现 LeaderboardService 排行榜计算
-- [ ] 任务完成时自动更新排行榜
-- [ ] 评分加成计算
-- [ ] 优先级加成计算
+- [x] 实现 LeaderboardService 排行榜计算
+- [x] 任务完成时自动更新排行榜
+- [x] 评分加成计算
+- [x] 优先级加成计算
 
-### 阶段 6: 测试与文档
+### 阶段 6: 测试与文档 🔄 进行中
 
 - [ ] API 接口测试
 - [ ] 前端功能测试
-- [ ] 更新 PROGRESS.md
+- [x] 更新 PROGRESS.md
 
 ---
 

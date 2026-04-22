@@ -1,4 +1,4 @@
-# Default ignored files
+# 默认忽略的文件
 /shelf/
 /workspace.xml
 # Ignored default folder with query files
@@ -7,4 +7,12 @@
 /dataSources/
 /dataSources.local.xml
 # Editor-based HTTP Client requests
+# 基于编辑器的 HTTP 客户端请求
 /httpRequests/
+
+.idea/
+/agent-knowledge-base.iml
+/modules.xml
+/inspectionProfiles/profiles_settings.xml
+/inspectionProfiles/Project_Default.xml
+/vcs.xml
