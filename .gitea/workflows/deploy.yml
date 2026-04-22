@@ -7,37 +7,58 @@ on:
 
 jobs:
   deploy:
-    runs-on: docker
-    container:
-      image: docker:24-dind
+    runs-on: [self-hosted, docker]
+
     steps:
       - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Show environment
         run: |
-          apk add --no-cache git
-          git clone http://echo:kerowsqw34@host.docker.internal:3000/echo/agent-kb.git /repo
-          cd /repo
-          git checkout main
+          echo "Branch: ${{ gitea.ref_name }}"
+          echo "Commit: ${{ gitea.sha }}"
+          docker version
+          docker compose version || true
+
+      - name: Prepare deploy directory
+        shell: sh
+        run: |
+          mkdir -p /workspace/agent_kb
+          mkdir -p /workspace/agent_kb/logs
+
+      - name: Sync deployment files
+        shell: sh
+        run: |
+          cp Dockerfile /workspace/agent_kb/Dockerfile
+          cp requirements.txt /workspace/agent_kb/requirements.txt
+          cp -r app /workspace/agent_kb/app
+          cp docker-compose.yml /workspace/agent_kb/docker-compose.yml
+
+      - name: Write image version
+        shell: sh
+        run: |
+          echo "APP_VERSION=${{ gitea.sha }}" > /workspace/agent_kb/.env
 
       - name: Build Docker image
+        shell: sh
         run: |
-          cd /repo
-          docker build -t my-app:${{ github.sha }} .
-          docker tag my-app:${{ github.sha }} my-app:latest
+          cd /workspace/agent_kb
+          docker build -t agent_kb:${{ gitea.sha }} -t agent_kb:latest .
 
-      - name: Stop and remove old container
+      - name: Ensure docker network exists
+        shell: sh
         run: |
-          docker rm -f agent_kb 2>/dev/null || true
+          docker network inspect devops-net >/dev/null 2>&1 || docker network create devops-net
 
-      - name: Copy files to app directory
+      - name: Deploy application
+        shell: sh
         run: |
-          rm -rf /d/docker-container/apps/agent_kb
-          mkdir -p /d/docker-container/apps/agent_kb
-          cp -r /repo/* /d/docker-container/apps/agent_kb/
-
-      - name: Start new container
-        run: |
-          docker compose -f /d/docker-container/apps/agent_kb/docker-compose.yml up -d --force-recreate
+          cd /workspace/agent_kb
+          docker compose down || true
+          docker compose up -d --force-recreate
 
       - name: Verify deployment
+        shell: sh
         run: |
-          docker ps | grep agent_kb || echo "Check done"
+          docker ps
+          docker inspect agent_kb --format='{{.State.Status}}'
