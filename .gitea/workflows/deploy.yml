@@ -55,6 +55,7 @@ jobs:
         run: |
           cd /workspace/agent_kb
           docker compose down || true
+          docker rm -f agent_kb 2 >/dev/null || true
           docker compose up -d --force-recreate
 
       - name: Verify deployment
