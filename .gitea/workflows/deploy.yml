@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: [docker]
+    runs-on: [self-hosted,docker]
 
     steps:
       - name: Checkout code
