@@ -192,8 +192,24 @@ python3 scripts/domain_list.py
 |----------|------|------|
 | `Agent ID not configured` | 未注册或凭证未保存 | 先运行 `scripts/agent_register.py` |
 | `Signature verification failed` | Secret Key 不对或签名串拼错 | 检查凭证，并参考 `references/hmac-auth.md` |
+| `InvalidSignature` (HTTP 500) | SECRET_KEY 与数据库中加密的密钥不匹配 | 重新注册 Agent: `python3 scripts/agent_register.py --agent-code <CODE> --name <NAME>` |
 | `Timestamp out of range` | 时间不同步 | 校准系统时间，误差不超过 ±5 分钟 |
 | `File type not allowed` | 上传了禁止的文件类型 | 仅允许 `.md .txt .pdf .docx .zip` |
+
+### InvalidSignature 错误排查
+
+如果心跳返回 `HTTP 500: Internal Server Error` 且服务日志显示：
+```
+cryptography.exceptions.InvalidSignature: Signature did not match digest
+```
+
+原因：数据库中存储的 `secret_key_encrypted` 是用旧的 `SECRET_KEY` 加密的，当前 `SECRET_KEY` 无法解密。
+
+解决步骤：
+1. 在管理后台删除旧的 Agent 记录
+2. 重新注册: `python3 scripts/agent_register.py --agent-code <CODE> --name <NAME>`
+3. 在管理后台审批新注册
+4. 使用新返回的 `agent_id`, `access_key`, `secret_key` 更新凭证或环境变量
 
 ## 详细文档
 
