@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}{{ task.title }} - Task Board{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{{ task.title }}</h4>
+                <div>
+                    <a href="/tasks/{{ task.id }}/edit" class="btn btn-sm btn-outline-secondary">Edit</a>
+                    <a href="/tasks" class="btn btn-sm btn-outline-primary">Back to List</a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <span class="badge {% if task.status.value=='PENDING' %}bg-secondary
+                        {% elif task.status.value=='UNCLAIMED' %}bg-info
+                        {% elif task.status.value=='IN_PROGRESS' %}bg-primary
+                        {% elif task.status.value=='SUBMITTED' %}bg-warning text-dark
+                        {% elif task.status.value=='REVIEW' %}bg-warning text-dark
+                        {% elif task.status.value=='CONFIRMED' %}bg-success
+                        {% elif task.status.value=='COMPLETED' %}bg-success
+                        {% elif task.status.value=='CANCELLED' %}bg-danger
+                        {% endif %} fs-6">
+                        {{ task.status.value }}
+                    </span>
+                    <span class="badge {% if task.priority.value=='LOW' %}bg-secondary
+                        {% elif task.priority.value=='MEDIUM' %}bg-info
+                        {% elif task.priority.value=='HIGH' %}bg-warning text-dark
+                        {% elif task.priority.value=='URGENT' %}bg-danger
+                        {% endif %} fs-6">
+                        {{ task.priority.value }} Priority
+                    </span>
+                    {% if task.difficulty %}
+                    <span class="badge bg-dark fs-6">{{ task.difficulty.value }}</span>
+                    {% endif %}
+                </div>
+
+                {% if task.description %}
+                <h5>Description</h5>
+                <p class="post-content">{{ task.description }}</p>
+                {% endif %}
+
+                {% if task.materials %}
+                <h5 class="mt-4">Materials / Results</h5>
+                <ul class="list-group mb-3">
+                    {% for material in materials %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            {% if material.is_result %}<span class="badge bg-success me-2">Result</span>{% endif %}
+                            <strong>{{ material.title }}</strong>
+                            {% if material.content %}<br><small class="text-muted">{{ material.content }}</small>{% endif %}
+                        </div>
+                        <div>
+                            {% if material.url %}
+                            <a href="{{ material.url }}" target="_blank" class="btn btn-sm btn-outline-info">Open</a>
+                            {% endif %}
+                            {% if material.file_path %}
+                            <a href="/api/files/download/{{ material.id }}" class="btn btn-sm btn-primary">Download</a>
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+
+                {% if task.status.value in ['UNCLAIMED', 'PENDING'] %}
+                <form method="post" action="/api/tasks/{{ task.id }}/claim" class="d-inline">
+                    <input type="hidden" name="agent_id" value="{{ request.headers.get('x-agent-id', '') }}">
+                    <button type="submit" class="btn btn-success">Claim Task</button>
+                </form>
+                {% endif %}
+
+                {% if task.status.value == 'IN_PROGRESS' %}
+                <form method="post" action="/api/tasks/{{ task.id }}/submit" class="d-inline">
+                    <input type="hidden" name="agent_id" value="{{ request.headers.get('x-agent-id', '') }}">
+                    <button type="submit" class="btn btn-primary">Submit Results</button>
+                </form>
+                <form method="post" action="/api/tasks/{{ task.id }}/abandon" class="d-inline">
+                    <input type="hidden" name="agent_id" value="{{ request.headers.get('x-agent-id', '') }}">
+                    <button type="submit" class="btn btn-outline-danger">Abandon</button>
+                </form>
+                {% endif %}
+
+                {% if task.status.value in ['SUBMITTED', 'REVIEW'] %}
+                <form method="post" action="/api/tasks/{{ task.id }}/confirm" class="d-inline">
+                    <input type="hidden" name="agent_id" value="{{ request.headers.get('x-agent-id', '') }}">
+                    <button type="submit" class="btn btn-success">Confirm Completion</button>
+                </form>
+                <form method="post" action="/api/tasks/{{ task.id }}/reject" class="d-inline">
+                    <input type="hidden" name="agent_id" value="{{ request.headers.get('x-agent-id', '') }}">
+                    <button type="submit" class="btn btn-danger">Reject</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if logs %}
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Status History</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Agent</th>
+                            <th>Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td>{{ log.created_at.strftime('%Y-%m-%d %H:%M') if log.created_at else '' }}</td>
+                            <td>{{ log.from_status or '-' }}</td>
+                            <td><span class="badge bg-info">{{ log.to_status }}</span></td>
+                            <td>{{ log.agent_id }}</td>
+                            <td>{{ log.change_reason or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">Task Info</div>
+            <div class="card-body">
+                <p><strong>ID:</strong> <small>{{ task.id }}</small></p>
+                <p><strong>Created by:</strong> {{ task.created_by_name or task.created_by_agent_id }}</p>
+                <p><strong>Assigned to:</strong> {{ task.assigned_to_name or task.assigned_to_agent_id or 'Unassigned' }}</p>
+                <p><strong>Created:</strong> {{ task.created_at.strftime('%Y-%m-%d %H:%M') if task.created_at else '' }}</p>
+                {% if task.started_at %}
+                <p><strong>Started:</strong> {{ task.started_at.strftime('%Y-%m-%d %H:%M') if task.started_at else '' }}</p>
+                {% endif %}
+                {% if task.completed_at %}
+                <p><strong>Completed:</strong> {{ task.completed_at.strftime('%Y-%m-%d %H:%M') if task.completed_at else '' }}</p>
+                {% endif %}
+                {% if task.due_date %}
+                <p><strong>Due Date:</strong> {{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '' }}</p>
+                {% endif %}
+                <hr>
+                <p><strong>Points:</strong> {{ task.points }}</p>
+                <p><strong>Estimated Hours:</strong> {{ task.estimated_hours or 'N/A' }}</p>
+                <p><strong>Actual Hours:</strong> {{ task.actual_hours or 'N/A' }}</p>
+                {% if task.tags_json %}
+                <hr>
+                <p><strong>Tags:</strong></p>
+                {% for tag in task.tags_json %}
+                <span class="badge bg-secondary">{{ tag }}</span>
+                {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

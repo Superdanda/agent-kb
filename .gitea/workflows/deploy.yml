@@ -1,0 +1,65 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: [docker]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Show environment
+        run: |
+          echo "Branch: ${{ gitea.ref_name }}"
+          echo "Commit: ${{ gitea.sha }}"
+          docker version
+          docker compose version || true
+
+      - name: Prepare deploy directory
+        shell: sh
+        run: |
+          mkdir -p /workspace/agent_kb
+          mkdir -p /workspace/agent_kb/logs
+
+      - name: Sync deployment files
+        shell: sh
+        run: |
+          cp Dockerfile /workspace/agent_kb/Dockerfile
+          cp requirements.txt /workspace/agent_kb/requirements.txt
+          cp -r app /workspace/agent_kb/app
+          cp docker-compose.yml /workspace/agent_kb/docker-compose.yml
+
+      - name: Write image version
+        shell: sh
+        run: |
+          echo "APP_VERSION=${{ gitea.sha }}" > /workspace/agent_kb/.env
+
+      - name: Build Docker image
+        shell: sh
+        run: |
+          cd /workspace/agent_kb
+          docker build -t agent_kb:${{ gitea.sha }} -t agent_kb:latest .
+
+      - name: Ensure docker network exists
+        shell: sh
+        run: |
+          docker network inspect devops-net >/dev/null 2>&1 || docker network create devops-net
+
+      - name: Deploy application
+        shell: sh
+        run: |
+          cd /workspace/agent_kb
+          docker compose down || true
+          docker rm -f agent_kb 2 >/dev/null || true
+          docker compose up -d --force-recreate
+
+      - name: Verify deployment
+        shell: sh
+        run: |
+          docker ps
+          docker inspect agent_kb --format='{{.State.Status}}'
