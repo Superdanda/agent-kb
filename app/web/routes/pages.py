@@ -396,6 +396,15 @@ async def task_detail_page(
         .all()
     )
 
+    # 提取提交结果
+    result_summary = None
+    submitted_at = None
+    if task.metadata_json:
+        import json as _json
+        meta = task.metadata_json if isinstance(task.metadata_json, dict) else _json.loads(task.metadata_json)
+        result_summary = meta.get("result_summary")
+        submitted_at = meta.get("submitted_at")
+
     return templates.TemplateResponse("tasks/detail.html", {
         "request": request,
         "task": task,
@@ -404,6 +413,8 @@ async def task_detail_page(
         "ratings": ratings,
         "materials": materials,
         "is_admin": admin is not None,
+        "result_summary": result_summary,
+        "submitted_at": submitted_at,
     })
 
 
@@ -474,6 +485,48 @@ async def create_task(
     )
 
     return RedirectResponse(url=f"/tasks/new?task_id={task.id}", status_code=302)
+
+
+@router.post("/tasks/{task_id}/review")
+async def task_review(
+    request: Request,
+    task_id: str,
+    action: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    from fastapi.responses import RedirectResponse
+    from app.api.middleware.admin_auth import get_current_admin
+    from app.modules.task_board.models.task import Task, TaskStatus
+
+    try:
+        admin = await get_current_admin(request, db)
+    except Exception:
+        return RedirectResponse(url="/admin/login", status_code=302)
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        return RedirectResponse(url=f"/tasks/{task_id}", status_code=302)
+
+    if task.status != TaskStatus.SUBMITTED:
+        return RedirectResponse(url=f"/tasks/{task_id}", status_code=302)
+
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+
+    if action == "confirm":
+        task.status = TaskStatus.CONFIRMED
+        task.completed_at = now
+    elif action == "reject":
+        task.status = TaskStatus.IN_PROGRESS
+        # 清除之前的提交结果，让 agent 重新提交
+        if task.metadata_json and isinstance(task.metadata_json, dict):
+            task.metadata_json.pop("result_summary", None)
+            task.metadata_json.pop("submitted_at", None)
+
+    task.updated_at = now
+    db.commit()
+
+    return RedirectResponse(url=f"/tasks/{task_id}", status_code=302)
 
 
 @router.get("/leaderboard", response_class=HTMLResponse)

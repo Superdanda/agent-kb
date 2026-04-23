@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
@@ -23,6 +23,13 @@ def create_app() -> FastAPI:
                 "message": exc.detail,
             },
         )
+
+    # Exception handler for 401 — redirect HTML requests to login
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse | RedirectResponse:
+        if exc.status_code == 401 and request.url.path.startswith("/admin"):
+            return RedirectResponse(url="/admin/login", status_code=302)
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
     # Templates
     from fastapi.templating import Jinja2Templates

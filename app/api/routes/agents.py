@@ -3,26 +3,11 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.api.middleware.auth import get_current_agent
-from app.api.schemas.agent import AgentCreate, AgentResponse, CredentialCreate, CredentialResponse
+from app.api.schemas.agent import AgentResponse
 from app.services.agent_service import AgentService
 from app.models.agent import AgentStatus
 
 router = APIRouter(prefix="/agents", tags=["agents"])
-
-
-@router.post("/register", status_code=status.HTTP_201_CREATED)
-def register_agent(data: AgentCreate, db: Session = Depends(get_db)):
-    """Register a new agent and return credentials (secret shown only once)."""
-    svc = AgentService(db)
-    agent = svc.create_agent(data)
-    cred, secret_plain = svc.create_credential(agent.id)
-    return {
-        "agent_id": agent.id,
-        "agent_code": agent.agent_code,
-        "name": agent.name,
-        "access_key": cred.access_key,
-        "secret_key": secret_plain,
-    }
 
 
 @router.post("/heartbeat")
