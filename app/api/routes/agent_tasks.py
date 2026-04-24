@@ -2,24 +2,31 @@
 Agent-facing API for heartbeat and task polling.
 These endpoints are designed for Hermes Agents to interact with the platform
 via scheduled tasks (cron jobs).
+
+`/api/agent/tasks/*` is kept as a compatibility surface. Mutating operations
+call the same TaskService methods as canonical `/api/tasks/*` routes so status
+transitions, permission checks, and logs remain consistent.
 """
-import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.api.middleware.auth import get_current_agent, get_current_agent_for_heartbeat
 from app.models.agent import Agent, AgentStatus
-from app.models.credential import AgentCredential
-from app.models.api_nonce import ApiNonce
-from app.modules.task_board.models.task import Task, TaskStatus, TaskPriority
+from app.modules.task_board.models.task import Task, TaskStatus
 from app.modules.task_board.models.task_material import TaskMaterial
 from app.modules.task_board.schemas.task import TaskResponse
+from app.modules.task_board.services.task_service import TaskService
 
 router = APIRouter(prefix="/agent", tags=["agent-interaction"])
+
+
+def _mark_deprecated(response: Response) -> None:
+    response.headers["Deprecation"] = "true"
+    response.headers["Link"] = '</api/tasks>; rel="successor-version"'
 
 
 @router.post("/heartbeat")
@@ -30,7 +37,7 @@ def heartbeat(
     """
     Agent heartbeat - updates last_seen_at and confirms agent is alive.
     Should be called every 30-60 seconds by the agent's scheduler.
-    
+
     Returns agent info including any pending notifications.
     """
     agent = db.query(Agent).filter(Agent.id == agent_id).first()
@@ -42,7 +49,6 @@ def heartbeat(
     agent.status = AgentStatus.ACTIVE
     db.commit()
 
-    # Count pending tasks assigned to this agent
     pending_count = db.query(Task).filter(
         Task.assigned_to_agent_id == agent_id,
         Task.status.in_([TaskStatus.PENDING, TaskStatus.UNCLAIMED, TaskStatus.IN_PROGRESS])
@@ -70,22 +76,18 @@ def get_pending_tasks(
     db: Session = Depends(get_db),
 ):
     """
-    Poll for pending tasks assigned to this agent.
+    Poll for pending tasks assigned to this agent or unclaimed tasks.
     The agent should call this regularly (e.g., every 10-30 seconds).
-    
-    Returns tasks with their materials (file uploads) included.
     """
     agent = db.query(Agent).filter(Agent.id == agent_id).first()
     if not agent:
         from app.core.exceptions import ResourceNotFoundError
         raise ResourceNotFoundError(f"Agent {agent_id} not found")
 
-    # Update last_seen_at
     agent.last_seen_at = datetime.now(timezone.utc)
     agent.status = AgentStatus.ACTIVE
     db.commit()
 
-    # Parse status filter
     status_values = []
     for s in status_filter.split(","):
         s = s.strip().upper()
@@ -96,8 +98,8 @@ def get_pending_tasks(
                 pass
 
     query = db.query(Task).filter(
-        Task.assigned_to_agent_id == agent_id,
-        Task.status.in_(status_values) if status_values else True
+        ((Task.assigned_to_agent_id == agent_id) | (Task.assigned_to_agent_id.is_(None))),
+        Task.status.in_(status_values) if status_values else True,
     ).order_by(
         Task.priority.desc(),
         Task.created_at.asc()
@@ -107,9 +109,8 @@ def get_pending_tasks(
 
     result = []
     for task in tasks:
-        # Get materials for this task
         materials = db.query(TaskMaterial).filter(TaskMaterial.task_id == task.id).all()
-        
+
         task_data = TaskResponse.model_validate(task).model_dump()
         task_data["materials"] = [
             {
@@ -121,11 +122,10 @@ def get_pending_tasks(
             }
             for m in materials
         ]
-        
-        # Add creator agent name
+
         creator = db.query(Agent).filter(Agent.id == task.created_by_agent_id).first()
         task_data["created_by_name"] = creator.name if creator else task.created_by_agent_id
-        
+
         result.append(task_data)
 
     return {
@@ -138,33 +138,13 @@ def get_pending_tasks(
 @router.post("/tasks/{task_id}/claim")
 def claim_task(
     task_id: str,
+    response: Response,
     agent_id: str = Depends(get_current_agent),
     db: Session = Depends(get_db),
 ):
-    """
-    Agent claims a task, changing its status to IN_PROGRESS.
-    Only works for PENDING or UNCLAIMED tasks assigned to this agent.
-    """
-    task = db.query(Task).filter(
-        Task.id == task_id,
-        Task.assigned_to_agent_id == agent_id
-    ).first()
-    
-    if not task:
-        from app.core.exceptions import ResourceNotFoundError
-        raise ResourceNotFoundError(f"Task {task_id} not found or not assigned to you")
-
-    if task.status not in [TaskStatus.PENDING, TaskStatus.UNCLAIMED]:
-        from app.core.exceptions import AuthenticationError
-        raise AuthenticationError(f"Task cannot be claimed in status: {task.status.value}")
-
-    old_status = task.status
-    task.status = TaskStatus.IN_PROGRESS
-    task.started_at = datetime.now(timezone.utc)
-    task.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(task)
-
+    """Compatibility route; prefer POST /api/tasks/{task_id}/claim."""
+    _mark_deprecated(response)
+    task = TaskService(db).claim_task(task_id=task_id, agent_id=agent_id)
     return {
         "status": "claimed",
         "task_id": task_id,
@@ -176,44 +156,40 @@ def claim_task(
 @router.post("/tasks/{task_id}/submit")
 def submit_task_result(
     task_id: str,
+    response: Response,
     result_summary: str = Query(..., description="Summary of the task result"),
     actual_hours: Optional[int] = Query(None, description="Actual hours spent"),
     agent_id: str = Depends(get_current_agent),
     db: Session = Depends(get_db),
 ):
-    """
-    Agent submits task result, changing status to SUBMITTED.
-    The task creator or admin will review and confirm/complete.
-    """
-    task = db.query(Task).filter(
-        Task.id == task_id,
-        Task.assigned_to_agent_id == agent_id
-    ).first()
-    
-    if not task:
-        from app.core.exceptions import ResourceNotFoundError
-        raise ResourceNotFoundError(f"Task {task_id} not found or not assigned to you")
-
-    if task.status != TaskStatus.IN_PROGRESS:
-        from app.core.exceptions import AuthenticationError
-        raise AuthenticationError(f"Task must be IN_PROGRESS to submit, current: {task.status.value}")
-
-    task.status = TaskStatus.SUBMITTED
-    task.actual_hours = actual_hours
-    task.updated_at = datetime.now(timezone.utc)
-    
-    # Store result in metadata
-    import json
-    metadata = task.metadata_json or {}
-    metadata["result_summary"] = result_summary
-    metadata["submitted_at"] = datetime.now(timezone.utc).isoformat()
-    task.metadata_json = metadata
-    
-    db.commit()
-    db.refresh(task)
-
+    """Compatibility route; prefer POST /api/tasks/{task_id}/submit."""
+    _mark_deprecated(response)
+    task = TaskService(db).submit_task_result(
+        task_id=task_id,
+        agent_id=agent_id,
+        result_summary=result_summary,
+        actual_hours=actual_hours,
+    )
     return {
         "status": "submitted",
+        "task_id": task_id,
+        "new_status": task.status.value,
+    }
+
+
+@router.post("/tasks/{task_id}/abandon")
+def abandon_task(
+    task_id: str,
+    response: Response,
+    reason: Optional[str] = Query(None),
+    agent_id: str = Depends(get_current_agent),
+    db: Session = Depends(get_db),
+):
+    """Compatibility route; prefer POST /api/tasks/{task_id}/abandon."""
+    _mark_deprecated(response)
+    task = TaskService(db).abandon_task(task_id=task_id, agent_id=agent_id, reason=reason)
+    return {
+        "status": "abandoned",
         "task_id": task_id,
         "new_status": task.status.value,
     }
