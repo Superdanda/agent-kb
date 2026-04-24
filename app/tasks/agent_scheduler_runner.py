@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from app.core.database import SessionLocal
 from app.repositories.agent_scheduler_repo import AgentSchedulerRepository
 from app.models.agent_scheduler import SchedulerStatus
+from app.services.scheduler_dispatch import dispatch_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -39,18 +40,15 @@ def _execute_scheduler(db, repo, scheduler):
     """Execute a single scheduler task."""
     started_at = datetime.now(timezone.utc)
 
-    # Mark as RUNNING
     repo.update_status(
         scheduler.id,
         status=SchedulerStatus.RUNNING.value,
         last_run_at=started_at,
     )
 
-    log = None
     try:
         logger.info(f"Executing scheduler {scheduler.id} ({scheduler.task_name})")
 
-        # Build a context dict for the task
         context = {
             "scheduler_id": scheduler.id,
             "agent_id": scheduler.agent_id,
@@ -58,26 +56,25 @@ def _execute_scheduler(db, repo, scheduler):
             "task_type": scheduler.task_type,
         }
 
-        # Execute based on task_name pattern
-        result = _dispatch_task(scheduler.task_name, scheduler.task_type, context)
+        result = _dispatch_task(db, scheduler, context)
 
-        # Mark as SUCCESS
         finished_at = datetime.now(timezone.utc)
         status = SchedulerStatus.SUCCESS.value
+        result_text = result.message
         repo.update_status(
             scheduler.id,
             status=status,
-            result=f"Success: {result}" if result else "Success",
+            result=result_text,
             last_run_at=started_at,
         )
         log = repo.create_execution_log(
             scheduler_id=scheduler.id,
             started_at=started_at,
             status=status,
-            result=result,
+            result=result_text,
         )
-        repo.finish_execution_log(log.id, finished_at, status, result)
-        logger.info(f"Scheduler {scheduler.id} completed successfully")
+        repo.finish_execution_log(log.id, finished_at, status, result_text)
+        logger.info(f"Scheduler {scheduler.id} completed successfully: {result_text}")
 
     except Exception as e:
         finished_at = datetime.now(timezone.utc)
@@ -98,16 +95,12 @@ def _execute_scheduler(db, repo, scheduler):
         repo.finish_execution_log(log.id, finished_at, SchedulerStatus.FAILED.value, error_msg)
 
 
-def _dispatch_task(task_name: str, task_type: str, context: dict) -> str:
-    """
-    Dispatch a task by name.
-    Extend this function to register more task handlers.
-    Currently logs the task; replace with actual execution logic.
-    """
-    # Placeholder: In a real system, you would look up registered handlers
-    # e.g., registered_tasks = {"sync_posts": sync_posts_task, "push_metrics": push_metrics_task}
-    # handler = registered_tasks.get(task_name)
-    # if handler:
-    #     return handler(context)
-    logger.info(f"Dispatching task '{task_name}' (type={task_type}) with context: {context}")
-    return f"Task '{task_name}' dispatched (no-op in placeholder)"
+def _dispatch_task(db, scheduler, context: dict):
+    """Dispatch a scheduler through the registered dispatch handler."""
+    logger.info(
+        "Dispatching scheduler task '%s' (type=%s) with context: %s",
+        scheduler.task_name,
+        scheduler.task_type,
+        context,
+    )
+    return dispatch_scheduler(db, scheduler, context)
