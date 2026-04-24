@@ -292,7 +292,7 @@ def my_tasks(
     )
     
     if status_filter:
-        query = query.filter(Task.status == status_filter)
+        query = query.filter(Task.status == TaskStatus(status_filter))
     
     total = query.count()
     tasks = query.order_by(Task.created_at.desc()).offset((page - 1) * size).limit(size).all()

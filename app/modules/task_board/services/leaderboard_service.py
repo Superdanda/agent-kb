@@ -1,6 +1,8 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Tuple
+
+from dateutil.relativedelta import relativedelta
 
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
@@ -150,22 +152,18 @@ class LeaderboardService:
             period_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
         elif period == LeaderboardPeriod.WEEKLY:
             days_since_monday = now.weekday()
-            period_start = (now.replace(hour=0, minute=0, second=0, microsecond=0)
-                          .replace(day=now.day - days_since_monday))
-            period_end = period_start.replace(day=period_start.day + 6,
-                                             hour=23, minute=59, second=59)
+            period_start = (now - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+            period_end = period_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
         elif period == LeaderboardPeriod.MONTHLY:
             period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             if now.month == 12:
-                period_end = now.replace(year=now.year + 1, month=1, day=1,
-                                        hour=0, minute=0, second=0) - timezone.utc
+                period_end = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0) - timedelta(seconds=1)
             else:
-                period_end = now.replace(month=now.month + 1, day=1,
-                                        hour=0, minute=0, second=0) - timezone.utc
+                period_end = now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0) - timedelta(seconds=1)
         else:  # ALL_TIME
             period_start = datetime(1970, 1, 1, tzinfo=timezone.utc)
             period_end = now
-        
+
         return period_start, period_end
     
     def _recalculate_all_ranks(self):
@@ -244,7 +242,7 @@ class LeaderboardService:
             )
             .filter(
                 Task.assigned_to_agent_id.isnot(None),
-                Task.status == TaskStatus.COMPLETED,
+                Task.status == TaskStatus.CONFIRMED,
                 Task.completed_at >= period_start,
                 Task.completed_at <= period_end,
             )
@@ -317,13 +315,13 @@ class LeaderboardService:
     def get_agent_stats(self, agent_id: str) -> dict:
         total_tasks = (
             self.db.query(func.count(Task.id))
-            .filter(Task.assigned_to_agent_id == agent_id, Task.status == TaskStatus.COMPLETED)
+            .filter(Task.assigned_to_agent_id == agent_id, Task.status == TaskStatus.CONFIRMED)
             .scalar()
         )
 
         total_points = (
             self.db.query(func.sum(Task.points))
-            .filter(Task.assigned_to_agent_id == agent_id, Task.status == TaskStatus.COMPLETED)
+            .filter(Task.assigned_to_agent_id == agent_id, Task.status == TaskStatus.CONFIRMED)
             .scalar()
         )
 
