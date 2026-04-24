@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(api-generating)",
+      "Skill(doc-writing)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}
