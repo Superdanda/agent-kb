@@ -1,165 +1,36 @@
 {% extends "base.html" %}
 {% block title %}任务详情 - Hermes KB{% endblock %}
 {% block content %}
+{% set status_label = '未认领' if task.status.value in ['PENDING', 'UNCLAIMED'] else '进行中' if task.status.value == 'IN_PROGRESS' else '已提交' if task.status.value in ['SUBMITTED', 'REVIEW'] else '已完成' if task.status.value in ['CONFIRMED', 'COMPLETED'] else '已取消' if task.status.value == 'CANCELLED' else task.status.value %}
+{% set priority_label = '低' if task.priority.value == 'LOW' else '中' if task.priority.value == 'MEDIUM' else '高' if task.priority.value == 'HIGH' else '紧急' if task.priority.value == 'URGENT' else task.priority.value %}
+{% set difficulty_label = '简单' if task.difficulty and task.difficulty.value == 'EASY' else '中等' if task.difficulty and task.difficulty.value == 'MEDIUM' else '困难' if task.difficulty and task.difficulty.value == 'HARD' else '专家' if task.difficulty and task.difficulty.value == 'EXPERT' else '未设置' %}
+
 <div class="task-detail-shell">
-    <section class="detail-hero card-hermes">
-        <div>
-            <p class="eyebrow">Task Detail</p>
-            <h2 class="mb-2">{{ task.title }}</h2>
-            <div class="hero-badges">
-                <span class="tone-badge {% if task.status.value in ['CONFIRMED', 'COMPLETED'] %}tone-success{% elif task.status.value=='IN_PROGRESS' %}tone-info{% elif task.status.value=='CANCELLED' %}tone-danger{% else %}tone-warn{% endif %}">
-                    {% if task.status.value=='PENDING' %}未认领
-                    {% elif task.status.value=='UNCLAIMED' %}未认领
-                    {% elif task.status.value=='IN_PROGRESS' %}进行中
-                    {% elif task.status.value=='SUBMITTED' %}已提交
-                    {% elif task.status.value=='REVIEW' %}已提交
-                    {% elif task.status.value=='CONFIRMED' %}已确认
-                    {% elif task.status.value=='COMPLETED' %}已确认
-                    {% elif task.status.value=='CANCELLED' %}已取消
-                    {% else %}{{ task.status.value }}{% endif %}
-                </span>
-                <span class="tone-badge {% if task.priority.value=='URGENT' %}tone-danger{% elif task.priority.value=='HIGH' %}tone-warn{% elif task.priority.value=='MEDIUM' %}tone-info{% else %}tone-success{% endif %}">
-                    优先级：
-                    {% if task.priority.value=='LOW' %}低{% elif task.priority.value=='MEDIUM' %}中{% elif task.priority.value=='HIGH' %}高{% elif task.priority.value=='URGENT' %}紧急{% else %}{{ task.priority.value }}{% endif %}
-                </span>
-                {% if task.difficulty %}
-                <span class="mini-pill">
-                    难度：
-                    {% if task.difficulty.value=='EASY' %}简单
-                    {% elif task.difficulty.value=='MEDIUM' %}中等
-                    {% elif task.difficulty.value=='HARD' %}困难
-                    {% elif task.difficulty.value=='EXPERT' %}专家
-                    {% else %}{{ task.difficulty.value }}{% endif %}
-                </span>
-                {% endif %}
-            </div>
+    <section class="detail-topbar card-hermes">
+        <div class="title-line">
+            <h2>{{ task.title }}</h2>
+            <span class="tone-badge {% if task.status.value in ['CONFIRMED', 'COMPLETED'] %}tone-success{% elif task.status.value == 'IN_PROGRESS' %}tone-info{% elif task.status.value == 'CANCELLED' %}tone-danger{% else %}tone-warn{% endif %}">{{ status_label }}</span>
         </div>
-        <div class="hero-actions">
-            <a href="/tasks" class="btn btn-hermes-secondary">返回任务列表</a>
+        <div class="top-actions">
             {% if is_admin %}
-            <a href="/tasks/{{ task.id }}/ai-edit" class="btn btn-hermes-primary" style="background: linear-gradient(135deg, var(--accent-cyan), #0099cc); border: none; color: #000;">AI 编辑任务</a>
-            <a href="#taskEditPanel" class="btn btn-hermes-secondary">展开编辑</a>
-            <a href="/tasks/new" class="btn btn-hermes-primary">创建新任务</a>
+            <a href="/tasks/{{ task.id }}/ai-edit" class="btn btn-hermes-primary command-primary">AI 编辑任务</a>
+            <button type="button" class="btn btn-hermes-secondary" data-editor-tab="manual">手动编辑</button>
             {% endif %}
+            <a href="/tasks" class="btn btn-hermes-secondary">返回</a>
         </div>
     </section>
 
-    {% if is_admin %}
-    <details id="taskEditPanel" class="card-hermes detail-panel admin-edit-panel">
-        <summary class="edit-summary">
-            <div>
-                <p class="eyebrow">Admin Edit</p>
-                <h3>编辑任务</h3>
-            </div>
-            <div class="summary-actions">
-                <span class="mini-pill">点击展开</span>
-                <span class="mini-pill">保存后返回详情页</span>
-            </div>
-        </summary>
-        <div class="edit-body">
-            <form method="post" action="/tasks/{{ task.id }}/edit" class="edit-task-form">
-                <div class="edit-main-fields">
-                    <div>
-                        <label class="form-label-hermes">标题 *</label>
-                        <input type="text" name="title" class="form-control-hermes field-lg" value="{{ task.title }}" required>
-                    </div>
-                    <div>
-                        <label class="form-label-hermes">描述</label>
-                        <textarea name="description" class="form-control-hermes field-textarea" rows="6">{{ task.description or '' }}</textarea>
-                    </div>
-                </div>
-                <div class="edit-grid">
-                    <div>
-                        <label class="form-label-hermes">优先级</label>
-                        <select name="priority" class="form-select-hermes">
-                            {% for p in priorities %}
-                            <option value="{{ p.value }}" {% if task.priority.value == p.value %}selected{% endif %}>
-                                {% if p.value=='LOW' %}低{% elif p.value=='MEDIUM' %}中{% elif p.value=='HIGH' %}高{% elif p.value=='URGENT' %}紧急{% else %}{{ p.value }}{% endif %}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="form-label-hermes">难度</label>
-                        <select name="difficulty" class="form-select-hermes">
-                            <option value="">-- 未设置 --</option>
-                            {% for d in difficulties %}
-                            <option value="{{ d.value }}" {% if task.difficulty and task.difficulty.value == d.value %}selected{% endif %}>
-                                {% if d.value=='EASY' %}简单{% elif d.value=='MEDIUM' %}中等{% elif d.value=='HARD' %}困难{% elif d.value=='EXPERT' %}专家{% else %}{{ d.value }}{% endif %}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="form-label-hermes">负责人</label>
-                        <select name="assigned_to_agent_code" class="form-select-hermes">
-                            <option value="">-- 未指派 --</option>
-                            {% for agent in agents %}
-                            <option value="{{ agent.agent_code }}" {% if task.assigned_to_agent_id == agent.id %}selected{% endif %}>{{ agent.name }} ({{ agent.agent_code }})</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="form-label-hermes">积分</label>
-                        <input type="number" name="points" class="form-control-hermes" value="{{ task.points }}" min="0">
-                    </div>
-                    <div>
-                        <label class="form-label-hermes">预计小时</label>
-                        <input type="number" name="estimated_hours" class="form-control-hermes" value="{{ task.estimated_hours if task.estimated_hours is not none else 0 }}" min="0">
-                    </div>
-                    <div>
-                        <label class="form-label-hermes">截止日期</label>
-                        <input type="date" name="due_date" class="form-control-hermes" value="{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '' }}">
-                    </div>
-                    <div class="edit-grid-wide">
-                        <label class="form-label-hermes">标签</label>
-                        <input type="text" name="tags" class="form-control-hermes" value="{{ task.tags_json|join(', ') if task.tags_json else '' }}">
-                    </div>
-                </div>
-                <div class="edit-actions">
-                    <button type="submit" class="btn-hermes-primary">保存修改</button>
-                </div>
-            </form>
-        </div>
-    </details>
-    {% endif %}
-
-    <div class="detail-grid">
-        <section class="card-hermes detail-panel">
-            <h3>任务说明</h3>
-            <p class="description-text">{{ task.description or '暂无描述。' }}</p>
-
-            <div class="info-grid">
-                <div class="info-item">
-                    <span>创建者</span>
-                    <strong>{{ creator_label }}</strong>
-                </div>
-                <div class="info-item">
-                    <span>负责人</span>
-                    <strong>{{ task.assigned_to.name if task.assigned_to else '未指派' }}</strong>
-                </div>
-                <div class="info-item">
-                    <span>创建方式</span>
-                    <strong>{% if task.metadata_json and task.metadata_json.get('ai_created') %}AI 智能添加{% else %}手动添加{% endif %}</strong>
-                </div>
-                <div class="info-item">
-                    <span>积分</span>
-                    <strong>{{ task.points }}</strong>
-                </div>
-                <div class="info-item">
-                    <span>预计工时</span>
-                    <strong>{{ task.estimated_hours if task.estimated_hours is not none else '未设置' }}</strong>
-                </div>
-                <div class="info-item">
-                    <span>截止日期</span>
-                    <strong>{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '未设置' }}</strong>
-                </div>
-                <div class="info-item">
-                    <span>创建时间</span>
-                    <strong>{{ task.created_at.strftime('%Y-%m-%d %H:%M') if task.created_at else '无' }}</strong>
+    <div class="work-layout">
+        <main class="primary-pane card-hermes">
+            <div class="panel-head">
+                <div>
+                    <p class="eyebrow">Task Content</p>
+                    <h3>任务说明</h3>
                 </div>
             </div>
-
+            <div class="description-scroll">
+                <p>{{ task.description or '暂无描述。' }}</p>
+            </div>
             {% if task.tags_json %}
             <div class="tag-row">
                 {% for tag in task.tags_json %}
@@ -167,159 +38,259 @@
                 {% endfor %}
             </div>
             {% endif %}
-        </section>
 
-        <section class="card-hermes detail-panel">
-            <div class="section-head">
-                <h3>任务材料</h3>
-                {% if is_admin %}
-                <span class="mini-pill">可继续补充</span>
-                {% endif %}
-            </div>
             {% if is_admin %}
-            <form method="post" action="/tasks/{{ task.id }}/materials/upload" enctype="multipart/form-data" class="material-upload-form">
-                <div>
-                    <label class="form-label-hermes">材料名称</label>
-                    <input type="text" name="title" class="form-control-hermes" placeholder="默认使用文件名">
-                </div>
-                <div>
-                    <label class="form-label-hermes">选择文件</label>
-                    <input type="file" name="file" class="form-control-hermes" required>
-                </div>
-                <button type="submit" class="btn-hermes-info">上传材料</button>
-            </form>
-            {% endif %}
-            <div class="detail-list">
-                {% for material in materials %}
-                <article class="list-item">
+            <section class="embedded-editor" id="embeddedEditor">
+                <div class="editor-head">
                     <div>
-                        <strong>{{ material.title }}</strong>
-                        <p class="mb-0">{{ material.material_type.value if material.material_type else 'FILE' }}</p>
+                        <p class="eyebrow">Edit Workspace</p>
+                        <h3>编辑任务</h3>
                     </div>
-                    {% if material.file_path %}
-                    <a class="file-action" href="/tasks/materials/{{ material.id }}/download">下载</a>
-                    {% elif material.url %}
-                    <a class="file-action" href="{{ material.url }}" target="_blank" rel="noopener noreferrer">打开</a>
-                    {% else %}
-                    <span class="muted-text">无附加路径</span>
-                    {% endif %}
-                </article>
-                {% else %}
-                <p class="muted-text mb-0">暂无材料。</p>
-                {% endfor %}
-            </div>
-        </section>
-
-        {% if result_summary or result_materials %}
-        <section class="card-hermes detail-panel tone-submitted result-panel">
-            <div class="result-head">
-                <div>
-                    <p class="eyebrow">Submitted Output</p>
-                    <h3>提交结果</h3>
+                    <div class="editor-tabs" role="tablist">
+                        <a href="/tasks/{{ task.id }}/ai-edit" class="editor-tab">AI 编辑</a>
+                        <button type="button" class="editor-tab active" data-editor-tab="manual">手动编辑</button>
+                    </div>
                 </div>
-                {% if task.status.value in ['CONFIRMED', 'COMPLETED'] %}
-                <span class="tone-badge tone-success">已确认</span>
-                {% elif task.status.value in ['SUBMITTED', 'REVIEW'] %}
-                <span class="tone-badge tone-warn">待确认</span>
-                {% endif %}
-            </div>
-            {% if result_summary %}
-            <div class="result-box">
-                <p class="result-text">{{ result_summary }}</p>
-                {% if submitted_at %}<p class="submitted-time">提交时间：{{ submitted_at }}</p>{% endif %}
-            </div>
-            {% endif %}
 
-            <div class="result-files">
-                <div class="result-files-title">
-                    <strong>结果文件</strong>
-                    <span>{{ result_materials|length }} 个文件</span>
-                </div>
-                <div class="file-list">
-                    {% for material in result_materials %}
-                    <article class="file-row">
-                        <div class="file-icon">FILE</div>
-                        <div class="file-main">
-                            <strong>{{ material.title }}</strong>
-                            <p>{{ material.file_path or material.url or '无路径信息' }}</p>
+                <div class="editor-pane active" data-editor-pane="manual">
+                    <form method="post" action="/tasks/{{ task.id }}/edit" class="inline-manual-form">
+                        <div class="manual-main">
+                            <div>
+                                <label class="form-label-hermes">标题 *</label>
+                                <input type="text" name="title" class="form-control-hermes" value="{{ task.title }}" required>
+                            </div>
+                            <div>
+                                <label class="form-label-hermes">描述</label>
+                                <textarea name="description" class="form-control-hermes" rows="5">{{ task.description or '' }}</textarea>
+                            </div>
                         </div>
-                        {% if material.file_path %}
-                        <a class="file-action" href="/tasks/materials/{{ material.id }}/download">下载</a>
-                        {% elif material.url %}
-                        <a class="file-action" href="{{ material.url }}" target="_blank" rel="noopener noreferrer">打开</a>
-                        {% endif %}
-                    </article>
+                        <div class="manual-grid">
+                            <div>
+                                <label class="form-label-hermes">优先级</label>
+                                <select name="priority" class="form-select-hermes">
+                                    {% for p in priorities %}
+                                    <option value="{{ p.value }}" {% if task.priority.value == p.value %}selected{% endif %}>
+                                        {% if p.value == 'LOW' %}低{% elif p.value == 'MEDIUM' %}中{% elif p.value == 'HIGH' %}高{% elif p.value == 'URGENT' %}紧急{% else %}{{ p.value }}{% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="form-label-hermes">难度</label>
+                                <select name="difficulty" class="form-select-hermes">
+                                    <option value="">未设置</option>
+                                    {% for d in difficulties %}
+                                    <option value="{{ d.value }}" {% if task.difficulty and task.difficulty.value == d.value %}selected{% endif %}>
+                                        {% if d.value == 'EASY' %}简单{% elif d.value == 'MEDIUM' %}中等{% elif d.value == 'HARD' %}困难{% elif d.value == 'EXPERT' %}专家{% else %}{{ d.value }}{% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="form-label-hermes">负责人</label>
+                                <select name="assigned_to_agent_code" class="form-select-hermes">
+                                    <option value="">未指派</option>
+                                    {% for agent in agents %}
+                                    <option value="{{ agent.agent_code }}" {% if task.assigned_to_agent_id == agent.id %}selected{% endif %}>{{ agent.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="form-label-hermes">积分</label>
+                                <input type="number" name="points" class="form-control-hermes" value="{{ task.points }}" min="0">
+                            </div>
+                            <div>
+                                <label class="form-label-hermes">预计小时</label>
+                                <input type="number" name="estimated_hours" class="form-control-hermes" value="{{ task.estimated_hours if task.estimated_hours is not none else 0 }}" min="0">
+                            </div>
+                            <div>
+                                <label class="form-label-hermes">截止日期</label>
+                                <input type="date" name="due_date" class="form-control-hermes" value="{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '' }}">
+                            </div>
+                            <div class="manual-wide">
+                                <label class="form-label-hermes">标签</label>
+                                <input type="text" name="tags" class="form-control-hermes" value="{{ task.tags_json|join(', ') if task.tags_json else '' }}">
+                            </div>
+                        </div>
+                        <div class="manual-actions">
+                            <button type="submit" class="btn-hermes-primary">保存修改</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+            {% endif %}
+        </main>
+
+        <aside class="side-pane">
+            <section class="side-card card-hermes">
+                <div class="panel-head compact">
+                    <h3>基础信息</h3>
+                </div>
+                <div class="meta-grid">
+                    <div><span>优先级</span><strong>{{ priority_label }}</strong></div>
+                    <div><span>难度</span><strong>{{ difficulty_label }}</strong></div>
+                    <div><span>负责人</span><strong>{{ task.assigned_to.name if task.assigned_to else '未指派' }}</strong></div>
+                    <div><span>预计工时</span><strong>{{ task.estimated_hours if task.estimated_hours is not none else '未设置' }}</strong></div>
+                    <div><span>截止时间</span><strong>{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '未设置' }}</strong></div>
+                    <div><span>积分</span><strong>{{ task.points }}</strong></div>
+                </div>
+            </section>
+
+            <section class="side-card card-hermes">
+                <div class="panel-head compact">
+                    <h3>材料</h3>
+                    <span class="mini-pill">{{ materials|length }}</span>
+                </div>
+                <div class="material-chips">
+                    {% for material in materials %}
+                    {% if material.file_path %}
+                    <a class="material-chip" href="/tasks/materials/{{ material.id }}/download">{{ material.title }}</a>
+                    {% elif material.url %}
+                    <a class="material-chip" href="{{ material.url }}" target="_blank" rel="noopener noreferrer">{{ material.title }}</a>
                     {% else %}
-                    <p class="muted-text mb-0">本次提交没有附带文件。</p>
+                    <span class="material-chip">{{ material.title }}</span>
+                    {% endif %}
+                    {% else %}
+                    <span class="muted-text">暂无材料</span>
                     {% endfor %}
                 </div>
-            </div>
+                {% if is_admin %}
+                <form method="post" action="/tasks/{{ task.id }}/materials/upload" enctype="multipart/form-data" class="compact-upload">
+                    <input type="text" name="title" class="form-control-hermes" placeholder="材料名">
+                    <input type="file" name="file" class="form-control-hermes" required>
+                    <button type="submit" class="btn-hermes-info">上传</button>
+                </form>
+                {% endif %}
+            </section>
 
-            {% if is_admin and task.status.value in ['SUBMITTED', 'REVIEW'] %}
-            <div class="review-actions">
-                <form method="post" action="/tasks/{{ task.id }}/review" style="display:inline">
-                    <input type="hidden" name="action" value="confirm">
-                    <button type="submit" class="btn btn-hermes-success">确认完成</button>
-                </form>
-                <form method="post" action="/tasks/{{ task.id }}/review" style="display:inline">
-                    <input type="hidden" name="action" value="reject">
-                    <button type="submit" class="btn btn-hermes-danger">退回修改</button>
-                </form>
+            <section class="side-card card-hermes">
+                <div class="panel-head compact">
+                    <h3>状态流转</h3>
+                    <span class="tone-badge {% if task.status.value in ['CONFIRMED', 'COMPLETED'] %}tone-success{% elif task.status.value == 'IN_PROGRESS' %}tone-info{% elif task.status.value == 'CANCELLED' %}tone-danger{% else %}tone-warn{% endif %}">{{ status_label }}</span>
+                </div>
+                <div class="flow-list">
+                    {% for log in logs[:3] %}
+                    <article class="flow-item {% if loop.first %}current{% endif %}">
+                        <span></span>
+                        <div>
+                            <strong>
+                                {% if log.to_status in ['PENDING', 'UNCLAIMED'] %}未认领
+                                {% elif log.to_status == 'IN_PROGRESS' %}进行中
+                                {% elif log.to_status in ['SUBMITTED', 'REVIEW'] %}已提交
+                                {% elif log.to_status in ['CONFIRMED', 'COMPLETED'] %}已完成
+                                {% elif log.to_status == 'CANCELLED' %}已取消
+                                {% else %}{{ log.to_status }}{% endif %}
+                            </strong>
+                            <small>{{ log.created_at.strftime('%Y-%m-%d %H:%M') if log.created_at else '' }}</small>
+                        </div>
+                    </article>
+                    {% else %}
+                    <p class="muted-text mb-0">暂无状态记录。</p>
+                    {% endfor %}
+                </div>
+                {% if logs|length > 3 %}
+                <details class="flow-all">
+                    <summary>展开全部</summary>
+                    <div class="flow-list">
+                        {% for log in logs[3:] %}
+                        <article class="flow-item">
+                            <span></span>
+                            <div>
+                                <strong>
+                                    {% if log.to_status in ['PENDING', 'UNCLAIMED'] %}未认领
+                                    {% elif log.to_status == 'IN_PROGRESS' %}进行中
+                                    {% elif log.to_status in ['SUBMITTED', 'REVIEW'] %}已提交
+                                    {% elif log.to_status in ['CONFIRMED', 'COMPLETED'] %}已完成
+                                    {% elif log.to_status == 'CANCELLED' %}已取消
+                                    {% else %}{{ log.to_status }}{% endif %}
+                                </strong>
+                                <small>{{ log.created_at.strftime('%Y-%m-%d %H:%M') if log.created_at else '' }}</small>
+                                {% if log.change_reason %}<em>{{ log.change_reason }}</em>{% endif %}
+                            </div>
+                        </article>
+                        {% endfor %}
+                    </div>
+                </details>
+                {% endif %}
+            </section>
+        </aside>
+    </div>
+
+    <section class="result-approval card-hermes">
+        <div class="panel-head">
+            <div>
+                <p class="eyebrow">Review</p>
+                <h3>提交结果</h3>
             </div>
+            {% if task.status.value in ['SUBMITTED', 'REVIEW'] %}
+            <span class="tone-badge tone-warn">待审批</span>
+            {% elif task.status.value in ['CONFIRMED', 'COMPLETED'] %}
+            <span class="tone-badge tone-success">已通过</span>
+            {% elif reject_reason %}
+            <span class="tone-badge tone-danger">已退回</span>
             {% endif %}
-        </section>
+        </div>
+
+        {% if result_summary %}
+        <div class="result-summary">
+            <strong>摘要</strong>
+            <p>{{ result_summary }}</p>
+            {% if submitted_at %}<span>提交时间：{{ submitted_at }}</span>{% endif %}
+        </div>
         {% endif %}
 
-        <section class="card-hermes detail-panel">
-            <h3>状态流转</h3>
-            <div class="detail-list">
-                {% for log in logs %}
-                <article class="list-item">
-                    <div>
-                        <strong>
-                            {% if log.to_status in ['PENDING', 'UNCLAIMED'] %}未认领
-                            {% elif log.to_status == 'IN_PROGRESS' %}进行中
-                            {% elif log.to_status in ['SUBMITTED', 'REVIEW'] %}已提交
-                            {% elif log.to_status in ['CONFIRMED', 'COMPLETED'] %}已确认
-                            {% elif log.to_status == 'CANCELLED' %}已取消
-                            {% else %}{{ log.to_status }}{% endif %}
-                        </strong>
-                        <p class="mb-0">
-                            {% if log.agent %}
-                            {{ log.agent.name }}
-                            {% elif log.admin_uuid %}
-                            管理员 {{ log.admin_uuid }}
-                            {% else %}
-                            系统
-                            {% endif %}
-                        </p>
-                    </div>
-                    <span class="muted-text">{{ log.created_at.strftime('%Y-%m-%d %H:%M') if log.created_at else '' }}</span>
-                </article>
-                {% else %}
-                <p class="muted-text mb-0">暂无状态记录。</p>
-                {% endfor %}
+        <div class="result-table">
+            <div class="result-table-head">
+                <strong>文件</strong>
+                <span>{{ result_materials|length }} 个</span>
             </div>
-        </section>
+            {% for material in result_materials %}
+            <article class="result-line">
+                <div>
+                    <strong>{{ material.title }}</strong>
+                    <span>{{ material.file_path or material.url or '无路径信息' }}</span>
+                </div>
+                {% if material.file_path %}
+                <a class="file-action" href="/tasks/materials/{{ material.id }}/download">下载</a>
+                {% elif material.url %}
+                <a class="file-action" href="{{ material.url }}" target="_blank" rel="noopener noreferrer">打开</a>
+                {% endif %}
+            </article>
+            {% else %}
+            <p class="muted-text mb-0">暂无提交文件。</p>
+            {% endfor %}
+        </div>
 
-        <section class="card-hermes detail-panel">
-            <h3>任务评分</h3>
-            <div class="detail-list">
-                {% for rating in ratings %}
-                <article class="list-item">
-                    <div>
-                        <strong>{{ rating.dimension }}</strong>
-                        <p class="mb-0">{{ rating.comment or '无备注' }}</p>
-                    </div>
-                    <span class="tone-badge tone-info">{{ rating.score }}/5</span>
-                </article>
-                {% else %}
-                <p class="muted-text mb-0">暂无评分。</p>
-                {% endfor %}
+        {% if is_admin and task.status.value in ['SUBMITTED', 'REVIEW'] %}
+        <div id="reviewDecision" class="approval-box">
+            <h3>审批操作</h3>
+            <div class="approval-actions">
+                <form method="post" action="/tasks/{{ task.id }}/review">
+                    <input type="hidden" name="action" value="confirm">
+                    <button type="submit" class="btn-hermes-success">通过</button>
+                </form>
+                <button type="button" class="btn-hermes-danger btn-secondary-danger" data-toggle-reject>退回</button>
             </div>
-        </section>
+            <form method="post" action="/tasks/{{ task.id }}/review" class="reject-panel" hidden>
+                <input type="hidden" name="action" value="reject">
+                <label class="form-label-hermes">退回理由</label>
+                <textarea name="reject_reason" class="form-control-hermes" rows="4" placeholder="写清楚缺少哪些内容、需要补充哪些材料或格式问题。" required></textarea>
+                <div class="reject-actions">
+                    <button type="submit" class="btn-hermes-danger">确认退回</button>
+                    <button type="button" class="btn-hermes-secondary" data-cancel-reject>取消</button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
 
-    </div>
+        {% if reject_reason %}
+        <div class="last-reject">
+            <strong>最近退回</strong>
+            <p>原因：{{ reject_reason }}</p>
+            {% if rejected_at %}<span>时间：{{ rejected_at }}</span>{% endif %}
+        </div>
+        {% endif %}
+    </section>
 </div>
 {% endblock %}
 
@@ -327,194 +298,403 @@
 <style>
     .task-detail-shell {
         display: grid;
-        gap: 1.5rem;
+        gap: 1rem;
     }
 
-    .detail-hero,
-    .detail-panel {
+    .detail-topbar,
+    .primary-pane,
+    .side-card,
+    .result-approval {
         border: 1px solid rgba(118, 155, 215, 0.18);
-        background:
-            radial-gradient(circle at top right, rgba(73, 140, 255, 0.14), transparent 22%),
-            linear-gradient(180deg, rgba(14, 24, 40, 0.96), rgba(8, 14, 24, 0.98));
-        box-shadow: 0 24px 54px rgba(4, 10, 20, 0.34);
+        background: linear-gradient(180deg, rgba(14, 24, 40, 0.96), rgba(8, 14, 24, 0.98));
+        box-shadow: 0 20px 46px rgba(4, 10, 20, 0.28);
     }
 
-    .detail-hero {
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        align-items: flex-start;
-    }
-
-    .eyebrow {
-        margin: 0 0 0.4rem;
-        text-transform: uppercase;
-        letter-spacing: 0.18em;
-        font-size: 0.72rem;
-        color: rgba(143, 184, 255, 0.72);
-    }
-
-    .hero-badges,
-    .hero-actions,
-    .tag-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.6rem;
-    }
-
-    .section-head {
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        align-items: flex-start;
-        margin-bottom: 1rem;
-    }
-
-    .section-head h3 {
-        margin: 0;
-    }
-
-    .admin-edit-panel {
-        scroll-margin-top: 6rem;
-    }
-
-    .admin-edit-panel > summary {
-        list-style: none;
-        cursor: pointer;
-    }
-
-    .admin-edit-panel > summary::-webkit-details-marker {
-        display: none;
-    }
-
-    .edit-summary {
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        align-items: flex-start;
-    }
-
-    .summary-actions {
-        display: flex;
-        gap: 0.6rem;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-    }
-
-    .edit-body {
-        padding-top: 1rem;
-    }
-
-    .admin-edit-panel[open] .edit-body {
-        border-top: 1px solid rgba(193, 212, 244, 0.1);
-        margin-top: 1rem;
-        padding-top: 1rem;
-    }
-
-    .edit-task-form,
-    .edit-main-fields,
-    .material-upload-form {
+    .detail-topbar {
         display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
         gap: 1rem;
+        align-items: center;
+        min-height: 5.2rem;
+        padding: 1rem 1.25rem;
     }
 
-    .edit-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 1rem;
-    }
-
-    .edit-grid-wide {
-        grid-column: 1 / -1;
-    }
-
-    .field-lg {
-        min-height: 3.1rem;
-        font-size: 1.05rem;
-    }
-
-    .field-textarea {
-        min-height: 150px;
-    }
-
-    .edit-actions {
+    .title-line {
         display: flex;
-        justify-content: flex-end;
-    }
-
-    .material-upload-form {
-        padding: 1rem;
-        margin-bottom: 1rem;
-        border-radius: 14px;
-        background: rgba(7, 12, 22, 0.34);
-        border: 1px solid rgba(193, 212, 244, 0.1);
-    }
-
-    .detail-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 1.5rem;
-    }
-
-    .detail-panel h3 {
-        margin-bottom: 1rem;
-    }
-
-    .description-text {
-        color: rgba(228, 236, 248, 0.82);
-        line-height: 1.75;
-        white-space: pre-wrap;
-    }
-
-    .info-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.9rem;
-        margin: 1.2rem 0;
-    }
-
-    .info-item {
-        padding: 0.95rem 1rem;
-        border-radius: 16px;
-        background: rgba(239, 246, 255, 0.05);
-        border: 1px solid rgba(193, 212, 244, 0.1);
-    }
-
-    .info-item span,
-    .muted-text,
-    .list-item p {
-        color: rgba(176, 194, 220, 0.76);
-    }
-
-    .info-item span {
-        display: block;
-        margin-bottom: 0.35rem;
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-    }
-
-    .detail-list {
-        display: grid;
         gap: 0.8rem;
+        align-items: center;
+        min-width: 0;
     }
 
-    .list-item {
+    .title-line h2 {
+        margin: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .top-actions,
+    .approval-actions,
+    .reject-actions {
+        display: flex;
+        gap: 0.65rem;
+        align-items: center;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .top-actions .btn,
+    .top-actions a,
+    .top-actions button {
+        min-height: 2.5rem;
+        white-space: nowrap;
+    }
+
+    .command-primary {
+        background: linear-gradient(135deg, var(--accent-cyan), #0099cc);
+        border: none;
+        color: #001018;
+    }
+
+    .work-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 65fr) minmax(20rem, 35fr);
+        gap: 1rem;
+        align-items: stretch;
+    }
+
+    .primary-pane {
+        display: flex;
+        min-height: 100%;
+        flex-direction: column;
+    }
+
+    .primary-pane,
+    .side-card,
+    .result-approval {
+        padding: 1.2rem;
+    }
+
+    .side-pane {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .panel-head {
         display: flex;
         justify-content: space-between;
         gap: 1rem;
         align-items: center;
-        padding: 0.95rem 1rem;
-        border-radius: 16px;
+        margin-bottom: 0.9rem;
+    }
+
+    .panel-head h3 {
+        margin: 0;
+    }
+
+    .panel-head.compact {
+        margin-bottom: 0.75rem;
+    }
+
+    .eyebrow {
+        margin: 0 0 0.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        font-size: 0.68rem;
+        color: rgba(143, 184, 255, 0.72);
+    }
+
+    .description-scroll {
+        flex: 1;
+        max-height: 28rem;
+        overflow: auto;
+        padding-right: 0.4rem;
+    }
+
+    .description-scroll p,
+    .ai-welcome p,
+    .result-summary p,
+    .last-reject p {
+        margin: 0;
+        color: rgba(228, 236, 248, 0.84);
+        line-height: 1.75;
+        white-space: pre-wrap;
+    }
+
+    .embedded-editor {
+        display: grid;
+        gap: 0.85rem;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(193, 212, 244, 0.1);
+    }
+
+    .editor-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .editor-head h3 {
+        margin: 0;
+    }
+
+    .editor-tabs {
+        display: flex;
+        gap: 0.45rem;
+        padding: 0.25rem;
+        border-radius: 10px;
         background: rgba(239, 246, 255, 0.05);
         border: 1px solid rgba(193, 212, 244, 0.1);
+    }
+
+    .editor-tab {
+        border: 0;
+        border-radius: 8px;
+        padding: 0.45rem 0.75rem;
+        color: rgba(224, 236, 255, 0.76);
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .editor-tab.active {
+        color: #001018;
+        background: var(--accent-cyan);
+    }
+
+    .editor-pane {
+        min-height: 21rem;
+        padding: 0.9rem;
+        border-radius: 12px;
+        background: rgba(7, 12, 22, 0.34);
+        border: 1px solid rgba(193, 212, 244, 0.1);
+    }
+
+    .inline-manual-form,
+    .manual-main {
+        display: grid;
+        gap: 0.85rem;
+    }
+
+    .manual-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+
+    .manual-wide {
+        grid-column: 1 / -1;
+    }
+
+    .manual-actions {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .tag-row,
+    .material-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .meta-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.55rem;
+    }
+
+    .meta-grid div {
+        min-width: 0;
+        padding: 0.65rem 0.7rem;
+        border-radius: 10px;
+        background: rgba(239, 246, 255, 0.05);
+        border: 1px solid rgba(193, 212, 244, 0.1);
+    }
+
+    .meta-grid span,
+    .muted-text,
+    .result-line span,
+    .result-summary span,
+    .last-reject span,
+    .flow-item small,
+    .flow-item em {
+        color: rgba(176, 194, 220, 0.72);
+    }
+
+    .meta-grid span {
+        display: block;
+        margin-bottom: 0.2rem;
+        font-size: 0.76rem;
+    }
+
+    .meta-grid strong,
+    .material-chip {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .compact-upload {
+        display: grid;
+        grid-template-columns: minmax(5rem, 0.9fr) minmax(8rem, 1.1fr) auto;
+        gap: 0.5rem;
+        align-items: center;
+        margin-top: 0.8rem;
+    }
+
+    .compact-upload .form-control-hermes {
+        min-height: 2.5rem;
+        padding: 0.55rem 0.7rem;
+    }
+
+    .material-chip {
+        display: inline-flex;
+        max-width: 11rem;
+        align-items: center;
+        padding: 0.42rem 0.65rem;
+        border-radius: 8px;
+        background: rgba(143, 184, 255, 0.1);
+        border: 1px solid rgba(143, 184, 255, 0.18);
+        color: rgba(224, 236, 255, 0.9);
+        text-decoration: none;
+    }
+
+    .material-chip:hover {
+        color: #fff;
+        border-color: rgba(103, 198, 255, 0.35);
+    }
+
+    .flow-list {
+        display: grid;
+        gap: 0.5rem;
+    }
+
+    .flow-item {
+        display: grid;
+        grid-template-columns: 1rem minmax(0, 1fr);
+        gap: 0.55rem;
+        align-items: start;
+    }
+
+    .flow-item > span {
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 50%;
+        margin-top: 0.45rem;
+        background: rgba(143, 184, 255, 0.45);
+        box-shadow: 0 0 0 4px rgba(143, 184, 255, 0.08);
+    }
+
+    .flow-item.current > span {
+        background: #8ff4c0;
+        box-shadow: 0 0 0 4px rgba(143, 184, 255, 0.12);
+    }
+
+    .flow-item div {
+        display: grid;
+        gap: 0.1rem;
+        min-width: 0;
+    }
+
+    .flow-item em {
+        font-style: normal;
+        line-height: 1.45;
+    }
+
+    .flow-all {
+        margin-top: 0.65rem;
+    }
+
+    .flow-all summary {
+        cursor: pointer;
+        color: #9edfff;
+        font-size: 0.86rem;
+    }
+
+    .result-summary,
+    .result-table,
+    .approval-box,
+    .last-reject {
+        padding: 0.9rem;
+        border-radius: 12px;
+        background: rgba(239, 246, 255, 0.05);
+        border: 1px solid rgba(193, 212, 244, 0.1);
+    }
+
+    .result-summary,
+    .result-table,
+    .approval-box {
+        margin-bottom: 0.85rem;
+    }
+
+    .result-summary {
+        display: grid;
+        gap: 0.35rem;
+    }
+
+    .result-table-head,
+    .result-line {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.8rem;
+        align-items: center;
+    }
+
+    .result-table-head {
+        margin-bottom: 0.65rem;
+    }
+
+    .result-line {
+        padding: 0.65rem 0;
+        border-top: 1px solid rgba(193, 212, 244, 0.1);
+    }
+
+    .result-line div {
+        display: grid;
+        min-width: 0;
+    }
+
+    .result-line span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .approval-box h3 {
+        margin-bottom: 0.75rem;
+    }
+
+    .reject-panel {
+        display: grid;
+        gap: 0.65rem;
+        margin-top: 0.85rem;
+        padding-top: 0.85rem;
+        border-top: 1px solid rgba(193, 212, 244, 0.1);
+    }
+
+    .reject-panel[hidden] {
+        display: none;
+    }
+
+    .btn-secondary-danger {
+        background: rgba(121, 26, 42, 0.18);
+    }
+
+    .last-reject {
+        display: grid;
+        gap: 0.35rem;
+        border-color: rgba(255, 122, 130, 0.26);
+        background: rgba(121, 26, 42, 0.14);
     }
 
     .mini-pill,
     .tone-badge {
         display: inline-flex;
         align-items: center;
-        padding: 0.3rem 0.75rem;
+        padding: 0.3rem 0.72rem;
         border-radius: 999px;
         border: 1px solid transparent;
         font-size: 0.82rem;
@@ -550,105 +730,12 @@
         border-color: rgba(255, 122, 130, 0.22);
     }
 
-    .tone-submitted {
-        border-color: rgba(87, 229, 165, 0.3);
-        background: radial-gradient(circle at top right, rgba(27, 109, 71, 0.18), transparent 22%),
-            linear-gradient(180deg, rgba(14, 24, 40, 0.96), rgba(8, 14, 24, 0.98));
-    }
-
-    .result-panel {
-        grid-column: 1 / -1;
-    }
-
-    .result-head,
-    .result-files-title {
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        align-items: flex-start;
-    }
-
-    .result-box {
-        padding: 1rem;
-        border-radius: 12px;
-        background: rgba(87, 229, 165, 0.08);
-        border: 1px solid rgba(87, 229, 165, 0.2);
-        margin-bottom: 1rem;
-    }
-
-    .result-text {
-        color: #8ff4c0;
-        font-size: 1.1rem;
-        font-weight: 500;
-        margin: 0 0 0.4rem;
-    }
-
-    .submitted-time {
-        color: rgba(176, 194, 220, 0.6);
-        font-size: 0.8rem;
-        margin: 0;
-    }
-
-    .result-files {
-        display: grid;
-        gap: 0.8rem;
-        padding: 1rem;
-        border-radius: 14px;
-        background: rgba(238, 244, 255, 0.05);
-        border: 1px solid rgba(193, 212, 244, 0.1);
-    }
-
-    .result-files-title span {
-        color: rgba(176, 194, 220, 0.72);
-        font-size: 0.86rem;
-    }
-
-    .file-list {
-        display: grid;
-        gap: 0.65rem;
-    }
-
-    .file-row {
-        display: grid;
-        grid-template-columns: 3.2rem minmax(0, 1fr) auto;
-        gap: 0.85rem;
-        align-items: center;
-        padding: 0.85rem;
-        border-radius: 12px;
-        background: rgba(7, 12, 22, 0.34);
-        border: 1px solid rgba(193, 212, 244, 0.1);
-    }
-
-    .file-icon {
-        display: grid;
-        place-items: center;
-        width: 3.2rem;
-        height: 3.2rem;
-        border-radius: 10px;
-        background: rgba(143, 184, 255, 0.12);
-        color: rgba(190, 215, 255, 0.88);
-        font-size: 0.72rem;
-        font-weight: 700;
-    }
-
-    .file-main {
-        min-width: 0;
-    }
-
-    .file-main p {
-        overflow: hidden;
-        margin: 0.2rem 0 0;
-        color: rgba(176, 194, 220, 0.68);
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
     .file-action {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 4.2rem;
-        padding: 0.45rem 0.8rem;
+        min-width: 4rem;
+        padding: 0.42rem 0.75rem;
         border-radius: 8px;
         background: rgba(87, 229, 165, 0.12);
         border: 1px solid rgba(87, 229, 165, 0.28);
@@ -661,24 +748,13 @@
         background: rgba(87, 229, 165, 0.18);
     }
 
-    .review-actions {
-        display: flex;
-        gap: 0.8rem;
-        margin-top: 1rem;
-    }
-
     .btn-hermes-success {
-        background: rgba(27, 109, 71, 0.4);
-        border: 1px solid rgba(87, 229, 165, 0.4);
+        background: rgba(27, 109, 71, 0.42);
+        border: 1px solid rgba(87, 229, 165, 0.42);
         color: #8ff4c0;
         padding: 0.5rem 1.2rem;
         border-radius: 8px;
         cursor: pointer;
-        font-size: 0.9rem;
-    }
-
-    .btn-hermes-success:hover {
-        background: rgba(27, 109, 71, 0.6);
     }
 
     .btn-hermes-danger {
@@ -688,32 +764,70 @@
         padding: 0.5rem 1.2rem;
         border-radius: 8px;
         cursor: pointer;
-        font-size: 0.9rem;
-    }
-
-    .btn-hermes-danger:hover {
-        background: rgba(121, 26, 42, 0.6);
     }
 
     @media (max-width: 991px) {
-        .detail-hero {
-            flex-direction: column;
-        }
-
-        .detail-grid,
-        .info-grid,
-        .edit-grid {
+        .detail-topbar,
+        .work-layout {
             grid-template-columns: 1fr;
         }
 
-        .section-head {
+        .title-line {
+            align-items: flex-start;
             flex-direction: column;
         }
 
-        .list-item {
+        .title-line h2 {
+            white-space: normal;
+        }
+
+        .top-actions,
+        .approval-actions,
+        .reject-actions {
+            justify-content: flex-start;
+        }
+
+        .meta-grid,
+        .compact-upload,
+        .manual-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .editor-head {
             align-items: flex-start;
             flex-direction: column;
         }
     }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const rejectButton = document.querySelector('[data-toggle-reject]');
+    const rejectPanel = document.querySelector('.reject-panel');
+    const cancelReject = document.querySelector('[data-cancel-reject]');
+
+    rejectButton?.addEventListener('click', () => {
+        if (!rejectPanel) return;
+        rejectPanel.hidden = false;
+        rejectPanel.querySelector('textarea')?.focus();
+    });
+
+    cancelReject?.addEventListener('click', () => {
+        if (!rejectPanel) return;
+        rejectPanel.hidden = true;
+        rejectPanel.reset();
+    });
+
+    const embeddedEditor = document.getElementById('embeddedEditor');
+
+    document.querySelectorAll('[data-editor-tab="manual"]').forEach((tab) => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('[data-editor-tab="manual"]').forEach((item) => item.classList.add('active'));
+            document.querySelector('[data-editor-pane="manual"]')?.classList.add('active');
+            document.querySelector('[data-editor-pane="manual"]')?.removeAttribute('hidden');
+            embeddedEditor?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+</script>
 {% endblock %}

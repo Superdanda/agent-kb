@@ -76,5 +76,10 @@ async def get_current_admin(
     admin = db.query(AdminUser).filter(AdminUser.id == token_data.admin_id).first()
     if admin is None:
         raise credentials_exception
+    if admin.status != "ACTIVE":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin user is inactive",
+        )
 
     return admin

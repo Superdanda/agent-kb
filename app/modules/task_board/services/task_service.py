@@ -192,9 +192,7 @@ class TaskService:
         task.assigned_to_agent_id = agent_id
         task.status = target_status_for(TaskAction.CLAIM)
         task.started_at = now
-        task.lease_token = secrets.token_urlsafe(32)
-        task.lease_renewed_at = now
-        task.lease_expires_at = now + timedelta(seconds=DEFAULT_TASK_LEASE_SECONDS)
+        self._issue_task_lease(task, now)
         task.updated_at = now
         self.db.commit()
         self.db.refresh(task)
@@ -400,10 +398,12 @@ class TaskService:
 
         old_status = task.status
         task.status = target_status_for(TaskAction.REJECT)
-        task.updated_at = datetime.now(timezone.utc)
-        metadata = task.metadata_json or {}
+        now = datetime.now(timezone.utc)
+        self._issue_task_lease(task, now)
+        task.updated_at = now
+        metadata = dict(task.metadata_json or {})
         metadata["reject_reason"] = reason.strip()
-        metadata["rejected_at"] = datetime.now(timezone.utc).isoformat()
+        metadata["rejected_at"] = now.isoformat()
         task.metadata_json = metadata
         self.db.commit()
         self.db.refresh(task)
@@ -414,6 +414,37 @@ class TaskService:
             task.status,
             reason.strip(),
             admin_uuid=reviewer_admin_uuid,
+        )
+        return task
+
+    def reset_task_to_unclaimed(
+        self,
+        task_id: str,
+        admin_uuid: str,
+        reason: Optional[str] = None,
+    ) -> Task:
+        task = self.get_task(task_id)
+        now = datetime.now(timezone.utc)
+        old_status = task.status
+        task.status = TaskStatus.UNCLAIMED
+        task.assigned_to_agent_id = None
+        task.lease_token = None
+        task.lease_expires_at = None
+        task.lease_renewed_at = None
+        task.updated_at = now
+        metadata = dict(task.metadata_json or {})
+        metadata["admin_reset_reason"] = (reason or "管理员重置为未认领").strip()
+        metadata["admin_reset_at"] = now.isoformat()
+        task.metadata_json = metadata
+        self.db.commit()
+        self.db.refresh(task)
+        self._log_status_change(
+            task.id,
+            None,
+            old_status,
+            task.status,
+            metadata["admin_reset_reason"],
+            admin_uuid=admin_uuid,
         )
         return task
 
@@ -551,6 +582,12 @@ class TaskService:
             raise PermissionDeniedError("Task lease token does not match")
         if not expires_at or expires_at < now:
             raise PermissionDeniedError("Task lease has expired")
+
+    def _issue_task_lease(self, task: Task, now: Optional[datetime] = None) -> None:
+        issued_at = now or datetime.now(timezone.utc)
+        task.lease_token = secrets.token_urlsafe(32)
+        task.lease_renewed_at = issued_at
+        task.lease_expires_at = issued_at + timedelta(seconds=DEFAULT_TASK_LEASE_SECONDS)
 
     def _ensure_reviewer(
         self,

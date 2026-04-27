@@ -162,3 +162,54 @@ def test_submit_marks_result_materials(db):
     db.refresh(material)
 
     assert material.is_result is True
+
+
+def test_reject_reissues_lease_and_records_reason(db):
+    agent = Agent(id="agent-1", agent_code="agent-1", name="Agent 1")
+    db.add(agent)
+    db.commit()
+
+    task = TaskService(db).create_task(title="Work item")
+    claimed = TaskService(db).claim_task(task.id, agent.id)
+    old_token = claimed.lease_token
+    submitted = TaskService(db).submit_task_result(
+        task_id=claimed.id,
+        agent_id=agent.id,
+        result_summary="done",
+        lease_token=old_token,
+        idempotency_key="submit-1",
+        require_lease=True,
+    )
+
+    rejected = TaskService(db).reject_task(
+        task_id=submitted.id,
+        reviewer_admin_uuid="admin-1",
+        reason="Missing references; please add sources.",
+    )
+
+    assert rejected.status == TaskStatus.IN_PROGRESS
+    assert rejected.assigned_to_agent_id == agent.id
+    assert rejected.lease_token
+    assert rejected.lease_token != old_token
+    assert rejected.lease_expires_at is not None
+    assert rejected.metadata_json["reject_reason"] == "Missing references; please add sources."
+
+
+def test_admin_reset_to_unclaimed_clears_assignment_and_lease(db):
+    agent = Agent(id="agent-1", agent_code="agent-1", name="Agent 1")
+    db.add(agent)
+    db.commit()
+
+    task = TaskService(db).create_task(title="Work item")
+    claimed = TaskService(db).claim_task(task.id, agent.id)
+
+    reset = TaskService(db).reset_task_to_unclaimed(
+        task_id=claimed.id,
+        admin_uuid="admin-1",
+        reason="Lease is missing; reopen for claim.",
+    )
+
+    assert reset.status == TaskStatus.UNCLAIMED
+    assert reset.assigned_to_agent_id is None
+    assert reset.lease_token is None
+    assert reset.metadata_json["admin_reset_reason"] == "Lease is missing; reopen for claim."

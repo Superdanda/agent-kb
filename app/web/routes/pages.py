@@ -27,6 +27,32 @@ async def home(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("home.html", {"request": request})
 
 
+@router.get("/admin/users", response_class=HTMLResponse)
+async def admin_users_page_fallback(
+    request: Request,
+    page: int = Query(1, ge=1),
+    keyword: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    from app.api.middleware.admin_auth import get_current_admin
+    from app.services.admin_user_service import AdminUserService
+
+    current_admin = await get_current_admin(request, db)
+    page_size = 20
+    admins, total = AdminUserService(db).list_admins(page=page, size=page_size, keyword=keyword)
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+    return templates.TemplateResponse("admin/users.html", {
+        "request": request,
+        "admins": admins,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+        "keyword": keyword or "",
+        "current_admin": current_admin,
+    })
+
+
 @router.get("/posts", response_class=HTMLResponse)
 async def posts_list(
     request: Request,
@@ -341,7 +367,6 @@ async def new_task_page(
     from app.models.agent import Agent
     agents = db.query(Agent).order_by(Agent.name).all()
 
-    # If AI mode requested, show AI chat interface
     if mode == "ai":
         return templates.TemplateResponse("tasks/ai_create.html", {
             "request": request,
@@ -411,13 +436,20 @@ async def task_detail_page(
     )
 
     # 提取提交结果
+    meta = {}
     result_summary = None
     submitted_at = None
+    reject_reason = None
+    rejected_at = None
+    admin_reset_reason = None
     if task.metadata_json:
         import json as _json
         meta = task.metadata_json if isinstance(task.metadata_json, dict) else _json.loads(task.metadata_json)
         result_summary = meta.get("result_summary")
         submitted_at = meta.get("submitted_at")
+        reject_reason = meta.get("reject_reason")
+        rejected_at = meta.get("rejected_at")
+        admin_reset_reason = meta.get("admin_reset_reason")
         result_material_ids = set(meta.get("result_material_ids") or [])
     else:
         result_material_ids = set()
@@ -441,6 +473,9 @@ async def task_detail_page(
         "is_admin": admin is not None,
         "result_summary": result_summary,
         "submitted_at": submitted_at,
+        "reject_reason": reject_reason,
+        "rejected_at": rejected_at,
+        "admin_reset_reason": admin_reset_reason,
         "priorities": list(TaskPriority),
         "difficulties": list(TaskDifficulty),
         "agents": agents,
@@ -473,6 +508,34 @@ async def ai_edit_task_page(
     return templates.TemplateResponse("tasks/ai_edit.html", {
         "request": request,
         "task": task,
+    })
+
+
+@router.get("/tasks/{task_id}/edit", response_class=HTMLResponse)
+async def edit_task_page(
+    request: Request,
+    task_id: str,
+    db: Session = Depends(get_db),
+):
+    from fastapi.responses import RedirectResponse
+    from app.api.middleware.admin_auth import get_current_admin
+    from app.modules.task_board.models.task import Task, TaskPriority, TaskDifficulty, TaskStatus
+
+    try:
+        await get_current_admin(request, db)
+    except Exception:
+        return RedirectResponse(url="/admin/login", status_code=302)
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        return HTMLResponse("Task not found", status_code=404)
+
+    return templates.TemplateResponse("task_board/edit.html", {
+        "request": request,
+        "task": task,
+        "priority_options": [p.value for p in TaskPriority],
+        "difficulty_options": [d.value for d in TaskDifficulty],
+        "status_options": [s.value for s in TaskStatus],
     })
 
 
@@ -692,6 +755,7 @@ async def task_review(
     request: Request,
     task_id: str,
     action: str = Form(...),
+    reject_reason: str = Form(""),
     db: Session = Depends(get_db),
 ):
     from fastapi.responses import RedirectResponse
@@ -718,19 +782,39 @@ async def task_review(
             reason="管理员确认通过",
         )
     elif action == "reject":
+        reason = reject_reason.strip()
+        if not reason:
+            return RedirectResponse(url=f"/tasks/{task_id}#reviewDecision", status_code=302)
         TaskService(db).reject_task(
             task_id=task.id,
             reviewer_admin_uuid=admin.uuid,
-            reason="管理员退回修改",
+            reason=reason,
         )
-        task = db.query(Task).filter(Task.id == task_id).first()
-        if task and task.metadata_json and isinstance(task.metadata_json, dict):
-            metadata = dict(task.metadata_json)
-            metadata.pop("result_summary", None)
-            metadata.pop("submitted_at", None)
-            task.metadata_json = metadata
-            db.commit()
 
+    return RedirectResponse(url=f"/tasks/{task_id}", status_code=302)
+
+
+@router.post("/tasks/{task_id}/reset-unclaimed")
+async def reset_task_to_unclaimed_from_page(
+    request: Request,
+    task_id: str,
+    reason: str = Form("管理员重置为未认领，等待重新认领"),
+    db: Session = Depends(get_db),
+):
+    from fastapi.responses import RedirectResponse
+    from app.api.middleware.admin_auth import get_current_admin
+    from app.modules.task_board.services.task_service import TaskService
+
+    try:
+        admin = await get_current_admin(request, db)
+    except Exception:
+        return RedirectResponse(url="/admin/login", status_code=302)
+
+    TaskService(db).reset_task_to_unclaimed(
+        task_id=task_id,
+        admin_uuid=admin.uuid,
+        reason=reason,
+    )
     return RedirectResponse(url=f"/tasks/{task_id}", status_code=302)
 
 

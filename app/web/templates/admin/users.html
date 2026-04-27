@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% block title %}人类管理员 - Hermes 知识库{% endblock %}
+{% block content %}
+<div class="admin-users-shell animate-fade-in-up">
+    <div class="admin-users-title-row">
+        <div>
+            <h1 class="page-title">人类管理员</h1>
+            <p class="page-subtitle">新增管理员账号，并维护头像、昵称、介绍和联系方式。</p>
+        </div>
+        <div class="header-actions">
+            <button class="btn-hermes-primary" type="button" onclick="openCreateModal()">新增管理员</button>
+            <a href="/admin/dashboard" class="btn-hermes-secondary">返回仪表板</a>
+        </div>
+    </div>
+
+    <form method="get" class="filter-bar">
+        <div class="search-box">
+            <input type="text" name="keyword" value="{{ keyword }}" placeholder="搜索用户名、昵称、邮箱或手机..." class="search-input">
+        </div>
+        <button type="submit" class="btn-hermes-primary">搜索</button>
+        <a href="/admin/users" class="btn-hermes-secondary">重置</a>
+    </form>
+
+    <div class="admin-users-list">
+        <table class="table-hermes">
+            <thead>
+                <tr>
+                    <th>管理员</th>
+                    <th>联系方式</th>
+                    <th>介绍</th>
+                    <th>状态</th>
+                    <th>创建时间</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for admin in admins %}
+                <tr>
+                    <td>
+                        <div class="identity-cell">
+                            {% if admin.avatar_url %}
+                            <img class="avatar" src="{{ admin.avatar_url }}" alt="{{ admin.nickname or admin.username }}">
+                            {% else %}
+                            <div class="avatar avatar-fallback">{{ (admin.nickname or admin.username)[:1] | upper }}</div>
+                            {% endif %}
+                            <div>
+                                <div class="admin-name">{{ admin.nickname or admin.username }}</div>
+                                <code class="admin-username">{{ admin.username }}</code>
+                                {% if current_admin.id == admin.id %}
+                                <span class="self-chip">当前账号</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="contact-lines">
+                            <span>{{ admin.email or '未填写邮箱' }}</span>
+                            <span>{{ admin.phone or '未填写手机' }}</span>
+                        </div>
+                    </td>
+                    <td class="bio-cell">{{ admin.bio or '—' }}</td>
+                    <td>
+                        {% if admin.status == 'ACTIVE' %}
+                        <span class="badge-hermes status-active">启用</span>
+                        {% else %}
+                        <span class="badge-hermes status-inactive">停用</span>
+                        {% endif %}
+                    </td>
+                    <td class="date-cell">{{ admin.created_at.strftime('%Y-%m-%d %H:%M') if admin.created_at else '—' }}</td>
+                    <td>
+                        <button class="btn-hermes-secondary btn-sm" type="button" onclick="openEditModal({{ admin.id }})">编辑</button>
+                        <button class="btn-hermes-secondary btn-sm" type="button" onclick="openAvatarModal({{ admin.id }})">头像</button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="empty-state">暂无管理员</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if total_pages > 1 %}
+    <div class="pagination-bar">
+        <span class="pagination-info">共 {{ total }} 条，第 {{ page }} / {{ total_pages }} 页</span>
+        <div class="pagination-controls">
+            {% if page > 1 %}
+            <a class="page-btn" href="?page={{ page - 1 }}&keyword={{ keyword }}">上一页</a>
+            {% endif %}
+            {% if page < total_pages %}
+            <a class="page-btn" href="?page={{ page + 1 }}&keyword={{ keyword }}">下一页</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div id="adminModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content card-hermes">
+        <div class="modal-header">
+            <h3 id="adminModalTitle">新增管理员</h3>
+            <button class="modal-close" type="button" onclick="closeAdminModal()">&times;</button>
+        </div>
+        <form id="adminForm" class="modal-body">
+            <input type="hidden" id="adminId">
+            <div class="form-row">
+                <div class="form-group-hermes">
+                    <label class="form-label-hermes">用户名</label>
+                    <input id="username" class="form-control-hermes" type="text" maxlength="64" required>
+                </div>
+                <div class="form-group-hermes">
+                    <label class="form-label-hermes">密码</label>
+                    <input id="password" class="form-control-hermes" type="password" minlength="6" placeholder="编辑时留空则不修改">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group-hermes">
+                    <label class="form-label-hermes">昵称</label>
+                    <input id="nickname" class="form-control-hermes" type="text" maxlength="128">
+                </div>
+                <div class="form-group-hermes">
+                    <label class="form-label-hermes">状态</label>
+                    <select id="status" class="form-select-hermes">
+                        <option value="ACTIVE">启用</option>
+                        <option value="INACTIVE">停用</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group-hermes">
+                    <label class="form-label-hermes">邮箱</label>
+                    <input id="email" class="form-control-hermes" type="email" maxlength="255">
+                </div>
+                <div class="form-group-hermes">
+                    <label class="form-label-hermes">手机</label>
+                    <input id="phone" class="form-control-hermes" type="text" maxlength="64">
+                </div>
+            </div>
+            <div class="form-group-hermes">
+                <label class="form-label-hermes">介绍</label>
+                <textarea id="bio" class="form-control-hermes" rows="4"></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn-hermes-primary">保存</button>
+                <button type="button" class="btn-hermes-secondary" onclick="closeAdminModal()">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="avatarModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content card-hermes modal-small">
+        <div class="modal-header">
+            <h3>上传头像</h3>
+            <button class="modal-close" type="button" onclick="closeAvatarModal()">&times;</button>
+        </div>
+        <form id="avatarForm" class="modal-body">
+            <input type="hidden" id="avatarAdminId">
+            <label class="form-label-hermes">JPG 或 PNG</label>
+            <input id="avatarFile" class="form-control-hermes" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" required>
+            <div class="form-actions">
+                <button type="submit" class="btn-hermes-primary">上传</button>
+                <button type="button" class="btn-hermes-secondary" onclick="closeAvatarModal()">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.admin-users-title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.5rem; }
+.header-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end; }
+.filter-bar { display: flex; gap: 0.75rem; padding: 1rem 1.5rem; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); margin-bottom: 1.5rem; align-items: center; flex-wrap: wrap; }
+.search-box { flex: 1; min-width: 220px; }
+.search-input { width: 100%; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 0.7rem 1rem; color: var(--text-primary); }
+.search-input:focus { outline: none; border-color: var(--accent-cyan); }
+.admin-users-list { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); overflow: hidden; }
+.identity-cell { display: flex; gap: 0.9rem; align-items: center; min-width: 240px; }
+.avatar { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.12); }
+.avatar-fallback { display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--accent-cyan), var(--accent-magenta)); color: #fff; font-weight: 700; }
+.admin-name { font-weight: 700; color: var(--text-primary); }
+.admin-username { display: inline-block; margin-top: 0.15rem; color: var(--accent-cyan); background: var(--bg-elevated); padding: 0.15rem 0.4rem; border-radius: 4px; }
+.self-chip { display: inline-flex; margin-left: 0.4rem; color: var(--accent-green); font-size: 0.75rem; }
+.contact-lines { display: grid; gap: 0.2rem; color: var(--text-secondary); }
+.bio-cell { max-width: 320px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.date-cell { color: var(--text-muted); font-family: var(--font-mono); font-size: 0.82rem; white-space: nowrap; }
+.status-active { background: rgba(0,255,136,0.1) !important; color: var(--accent-green) !important; border: 1px solid rgba(0,255,136,0.2) !important; }
+.status-inactive { background: rgba(136,136,160,0.1) !important; color: var(--text-secondary) !important; border: 1px solid rgba(136,136,160,0.2) !important; }
+.btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; margin-right: 0.4rem; }
+.empty-state { text-align: center; color: var(--text-muted); padding: 2rem !important; }
+.pagination-bar { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); margin-top: 1.5rem; }
+.pagination-info { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted); }
+.pagination-controls { display: flex; gap: 0.5rem; }
+.page-btn { color: var(--text-secondary); text-decoration: none; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 0.5rem 0.9rem; }
+.page-btn:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 2rem; }
+.modal-content { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); max-width: 780px; width: 100%; max-height: 90vh; overflow-y: auto; }
+.modal-small { max-width: 440px; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-subtle); }
+.modal-header h3 { margin: 0; font-size: 1.1rem; color: var(--accent-cyan); }
+.modal-close { background: none; border: 0; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer; }
+.modal-body { padding: 1.5rem; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-group-hermes { margin-bottom: 1rem; }
+.form-label-hermes { display: block; }
+.form-actions { display: flex; gap: 0.75rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border-subtle); }
+@media (max-width: 768px) {
+    .admin-users-title-row, .pagination-bar { flex-direction: column; align-items: stretch; }
+    .form-row { grid-template-columns: 1fr; }
+}
+</style>
+
+<script>
+function payloadFromForm(isCreate) {
+    const payload = {
+        nickname: valueOrNull('nickname'),
+        bio: valueOrNull('bio'),
+        email: valueOrNull('email'),
+        phone: valueOrNull('phone'),
+        status: document.getElementById('status').value
+    };
+    const password = document.getElementById('password').value;
+    if (isCreate || password) payload.password = password;
+    if (isCreate) payload.username = document.getElementById('username').value;
+    return payload;
+}
+
+function valueOrNull(id) {
+    const value = document.getElementById(id).value.trim();
+    return value || null;
+}
+
+function openCreateModal() {
+    document.getElementById('adminForm').reset();
+    document.getElementById('adminId').value = '';
+    document.getElementById('username').readOnly = false;
+    document.getElementById('password').required = true;
+    document.getElementById('adminModalTitle').textContent = '新增管理员';
+    document.getElementById('adminModal').style.display = 'flex';
+}
+
+async function openEditModal(adminId) {
+    const resp = await fetch(`/api/admin/users/${adminId}`);
+    if (!resp.ok) return alert('加载管理员失败');
+    const admin = await resp.json();
+    document.getElementById('adminId').value = admin.id;
+    document.getElementById('username').value = admin.username || '';
+    document.getElementById('username').readOnly = true;
+    document.getElementById('password').value = '';
+    document.getElementById('password').required = false;
+    document.getElementById('nickname').value = admin.nickname || '';
+    document.getElementById('email').value = admin.email || '';
+    document.getElementById('phone').value = admin.phone || '';
+    document.getElementById('bio').value = admin.bio || '';
+    document.getElementById('status').value = admin.status || 'ACTIVE';
+    document.getElementById('adminModalTitle').textContent = '编辑管理员';
+    document.getElementById('adminModal').style.display = 'flex';
+}
+
+function closeAdminModal() {
+    document.getElementById('adminModal').style.display = 'none';
+}
+
+function openAvatarModal(adminId) {
+    document.getElementById('avatarForm').reset();
+    document.getElementById('avatarAdminId').value = adminId;
+    document.getElementById('avatarModal').style.display = 'flex';
+}
+
+function closeAvatarModal() {
+    document.getElementById('avatarModal').style.display = 'none';
+}
+
+document.getElementById('adminForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const adminId = document.getElementById('adminId').value;
+    const isCreate = !adminId;
+    const resp = await fetch(isCreate ? '/api/admin/users' : `/api/admin/users/${adminId}`, {
+        method: isCreate ? 'POST' : 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payloadFromForm(isCreate))
+    });
+    if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        alert(err.detail || err.message || '保存失败');
+        return;
+    }
+    location.reload();
+});
+
+document.getElementById('avatarForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const adminId = document.getElementById('avatarAdminId').value;
+    const fileInput = document.getElementById('avatarFile');
+    if (!fileInput.files.length) return;
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    const resp = await fetch(`/api/admin/users/${adminId}/avatar`, { method: 'POST', body: formData });
+    if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        alert(err.detail || err.message || '头像上传失败');
+        return;
+    }
+    location.reload();
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        closeAdminModal();
+        closeAvatarModal();
+    }
+});
+</script>
+{% endblock %}

@@ -14,6 +14,7 @@ from app.models.learning_record import LearningRecord, LearningStatus
 from app.api.middleware.admin_auth import get_current_admin
 from app.services.domain_service import DomainService
 from app.services.skill_service import SkillService
+from app.services.admin_user_service import AdminUserService
 from app.web import templates
 
 
@@ -72,6 +73,29 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
         "total_learning_records": total_learning_records,
         "outdated_records": outdated_records,
         "pending_registrations": pending_registrations,
+    })
+
+
+@router.get("/users", response_class=HTMLResponse)
+async def admin_users(
+    request: Request,
+    page: int = Query(1, ge=1),
+    keyword: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    current_admin = await get_current_admin(request, db)
+    page_size = 20
+    admins, total = AdminUserService(db).list_admins(page=page, size=page_size, keyword=keyword)
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+    return templates.TemplateResponse("admin/users.html", {
+        "request": request,
+        "admins": admins,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+        "keyword": keyword or "",
+        "current_admin": current_admin,
     })
 
 

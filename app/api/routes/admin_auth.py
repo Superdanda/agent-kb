@@ -23,6 +23,8 @@ class LoginRequest(BaseModel):
 class AdminResponse(BaseModel):
     id: int
     username: str
+    nickname: str | None = None
+    avatar_url: str | None = None
     created_at: str
 
     class Config:
@@ -40,6 +42,11 @@ async def login(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
+        )
+    if admin.status != "ACTIVE":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin user is inactive",
         )
 
     access_token = create_access_token(
@@ -66,5 +73,7 @@ async def get_me(current_admin: AdminUser = Depends(get_current_admin)):
     return AdminResponse(
         id=current_admin.id,
         username=current_admin.username,
+        nickname=current_admin.nickname,
+        avatar_url=current_admin.avatar_url,
         created_at=current_admin.created_at.isoformat(),
     )
