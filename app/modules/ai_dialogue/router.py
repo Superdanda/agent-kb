@@ -63,6 +63,32 @@ PRIORITY_CN = {"LOW": "低", "MEDIUM": "中", "HIGH": "高", "URGENT": "紧急"}
 DIFFICULTY_CN = {"EASY": "简单", "MEDIUM": "中等", "HARD": "困难", "EXPERT": "专家"}
 
 
+def _parse_sse_action_data(data_str: str) -> Optional[dict]:
+    """Parse action data from SSE, accepting legacy double-encoded payloads."""
+    try:
+        data = json.loads(data_str)
+    except json.JSONDecodeError:
+        return None
+
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError:
+            return None
+
+    return data if isinstance(data, dict) else None
+
+
+def _normalize_fields(fields) -> dict:
+    """Ensure tool fields are a dict before route code uses dict methods."""
+    if isinstance(fields, str):
+        try:
+            fields = json.loads(fields)
+        except json.JSONDecodeError:
+            return {}
+    return fields if isinstance(fields, dict) else {}
+
+
 def _build_create_result_text(fields: dict, task_id: str, material_count: int) -> str:
     """Build the final result display text for task creation."""
     title = fields.get("title", "未命名任务")
@@ -164,14 +190,13 @@ async def ai_create_task(
                 for line in sse_msg.strip().split("\n"):
                     if line.startswith("data: "):
                         data_str = line[6:]
-                        try:
-                            action_data = json.loads(data_str)
-                        except json.JSONDecodeError:
+                        action_data = _parse_sse_action_data(data_str)
+                        if action_data is None:
                             continue
 
                         # Execute the business action
                         try:
-                            fields = action_data.get("fields", {})
+                            fields = _normalize_fields(action_data.get("fields", {}))
 
                             # Resolve agent
                             assigned_to = fields.get("assigned_to_agent_id")
@@ -335,13 +360,12 @@ async def ai_edit_task(
                 for line in sse_msg.strip().split("\n"):
                     if line.startswith("data: "):
                         data_str = line[6:]
-                        try:
-                            action_data = json.loads(data_str)
-                        except json.JSONDecodeError:
+                        action_data = _parse_sse_action_data(data_str)
+                        if action_data is None:
                             continue
 
                         try:
-                            fields = action_data.get("fields", {})
+                            fields = _normalize_fields(action_data.get("fields", {}))
                             changes = action_data.get("changes", [])
 
                             # Apply only non-None fields

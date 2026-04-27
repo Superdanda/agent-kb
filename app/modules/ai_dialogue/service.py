@@ -228,10 +228,20 @@ def _format_field_value(field: str, value: Any) -> str:
 # SSE helpers
 # ---------------------------------------------------------------------------
 
-def _sse_event(event: str, data: str) -> str:
+def _sse_event(event: str, data: Any) -> str:
     """Format an SSE event."""
-    payload = json.dumps(data, ensure_ascii=False) if not isinstance(data, str) else json.dumps(data, ensure_ascii=False)
+    payload = json.dumps(data, ensure_ascii=False)
     return f"event: {event}\ndata: {payload}\n\n"
+
+
+def _coerce_json_object(value: Any) -> Dict[str, Any]:
+    """Return a JSON object dict, accepting one layer of string encoding."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+    return value if isinstance(value, dict) else {}
 
 
 # ---------------------------------------------------------------------------
@@ -410,7 +420,7 @@ class AIDialogueService:
                             if current_tool_id and current_tool_name and tool_input_json:
                                 # Tool call complete — parse and yield structured action
                                 try:
-                                    tool_input = json.loads(tool_input_json)
+                                    tool_input = _coerce_json_object(json.loads(tool_input_json))
                                 except json.JSONDecodeError:
                                     tool_input = {}
 
@@ -431,13 +441,13 @@ class AIDialogueService:
                                     action_data, current_task
                                 )
 
-                                yield _sse_event("tool_result", json.dumps(action_data, ensure_ascii=False))
+                                yield _sse_event("tool_result", action_data)
 
                                 # Yield final result event
                                 if current_tool_name == "create_task":
-                                    yield _sse_event("task_ready", json.dumps(action_data, ensure_ascii=False))
+                                    yield _sse_event("task_ready", action_data)
                                 else:
-                                    yield _sse_event("task_updated", json.dumps(action_data, ensure_ascii=False))
+                                    yield _sse_event("task_updated", action_data)
 
                                 # Reset tool state
                                 current_tool_id = None
@@ -489,7 +499,7 @@ class AIDialogueService:
     ) -> str:
         """Build a human-readable summary of the action."""
         action = action_data.get("action", "")
-        fields = action_data.get("fields", {})
+        fields = _coerce_json_object(action_data.get("fields", {}))
 
         if action == "create_task":
             title = fields.get("title", "未命名任务")

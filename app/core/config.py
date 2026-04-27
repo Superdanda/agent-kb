@@ -9,8 +9,10 @@ def get_env_file() -> str:
     """根据 ENVIRONMENT 环境变量选择对应的 .env 文件"""
     env = os.getenv("ENVIRONMENT", "dev")
     env_file_map = {
-        "local_prod": ".env.local_prod",
         "dev": ".env.dev",
+        "local_dev": ".env.local_dev",
+        "local_prod": ".env.local_prod",
+        "local_wsl_prod": ".env.local_wsl_prod",
     }
     return env_file_map.get(env, ".env")
 
