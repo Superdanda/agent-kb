@@ -43,6 +43,16 @@ class Settings(BaseSettings):
     # Upload
     UPLOAD_MAX_SIZE_MB: int = 50
 
+    # AI / LLM
+    AI_PROVIDER: str = "anthropic"
+    AI_BASE_URL: str = "https://api.anthropic.com"
+    AI_API_KEY: str = ""
+    AI_MODEL: str = "claude-sonnet-4-5"
+    AI_TASK_MODEL: str = ""
+    AI_MAX_TOKENS: int = 4096
+    AI_TEMPERATURE: float = 0.2
+    AI_STREAM_ENABLED: bool = True
+
     # App
     HOST: str = "0.0.0.0"
     PORT: int = 8000
@@ -56,6 +66,11 @@ class Settings(BaseSettings):
     @property
     def mcp_allowed_origins_list(self) -> List[str]:
         return json.loads(self.MCP_ALLOWED_ORIGINS)
+
+    @property
+    def ai_task_model(self) -> str:
+        """Effective model for task creation/editing, falls back to AI_MODEL."""
+        return self.AI_TASK_MODEL or self.AI_MODEL
 
 
 settings = Settings()

@@ -7,11 +7,11 @@
         <div>
             <p class="eyebrow">Task Creation</p>
             <h2 class="mb-2">创建新任务</h2>
-            <p class="hero-copy">将任务拆成清晰的目标、交付信息和执行约束，避免一次性塞入太多字段造成视觉负担。</p>
+            <p class="hero-copy">选择 AI 智能添加或手动填写表单。</p>
         </div>
         <div class="hero-aside">
-            <span class="hero-pill">管理员入口</span>
-            <span class="hero-pill hero-pill-muted">完成创建后可继续上传任务材料</span>
+            <a href="/tasks/new?mode=ai" class="hero-pill hero-pill-ai">AI 智能添加</a>
+            <span class="hero-pill hero-pill-active">手动添加</span>
         </div>
     </section>
 
@@ -214,6 +214,25 @@
         color: rgba(226, 236, 251, 0.84);
     }
 
+    .hero-pill-ai {
+        background: rgba(0, 212, 255, 0.18);
+        border-color: rgba(0, 212, 255, 0.35);
+        color: #00d4ff;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .hero-pill-ai:hover {
+        background: rgba(0, 212, 255, 0.28);
+        color: #80edff;
+    }
+
+    .hero-pill-active {
+        background: rgba(0, 255, 136, 0.15);
+        border-color: rgba(0, 255, 136, 0.3);
+        color: #00ff88;
+    }
+
     .task-form-grid {
         display: grid;
         grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.9fr);
@@ -346,12 +365,17 @@ function uploadMaterial() {
 
     statusDiv.innerHTML = '<span class="text-info">上传中...</span>';
 
-    fetch('/materials/upload', {
+    fetch('/tasks/' + encodeURIComponent(taskId) + '/materials/upload', {
         method: 'POST',
         body: formData,
-        headers: {'Authorization': 'Bearer ' + (document.cookie.match(/admin_token=([^;]+)/) ? document.cookie.match(/admin_token=([^;]+)/)[1] : '')}
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
     })
-    .then(r => r.json())
+    .then(r => {
+        if (!r.ok) {
+            throw new Error('HTTP ' + r.status);
+        }
+        return r.json();
+    })
     .then(data => {
         statusDiv.innerHTML = '<span class="text-success">上传成功：' + (data.title || data.file_path) + '</span>';
         fileInput.value = '';

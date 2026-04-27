@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Request, Depends, Form, Query, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
+from pathlib import Path
+from urllib.parse import quote
+import mimetypes
 from app.core.database import get_db
 from app.services.post_service import PostService
 from app.services.domain_service import DomainService
@@ -324,6 +327,7 @@ async def tasks_page(
 @router.get("/tasks/new", response_class=HTMLResponse)
 async def new_task_page(
     request: Request,
+    mode: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     from fastapi.responses import RedirectResponse
@@ -336,6 +340,14 @@ async def new_task_page(
     from app.modules.task_board.models.task import TaskPriority, TaskDifficulty
     from app.models.agent import Agent
     agents = db.query(Agent).order_by(Agent.name).all()
+
+    # If AI mode requested, show AI chat interface
+    if mode == "ai":
+        return templates.TemplateResponse("tasks/ai_create.html", {
+            "request": request,
+            "agents": agents,
+        })
+
     return templates.TemplateResponse("tasks/new.html", {
         "request": request,
         "priorities": list(TaskPriority),
@@ -356,6 +368,8 @@ async def task_detail_page(
     from app.modules.task_board.models.task_status_log import TaskStatusLog
     from app.modules.task_board.models.task_rating import TaskRating
     from app.modules.task_board.models.task_material import TaskMaterial
+    from app.modules.task_board.models.task import TaskPriority, TaskDifficulty
+    from app.models.agent import Agent
 
     try:
         admin = await get_current_admin(request, db)
@@ -404,6 +418,17 @@ async def task_detail_page(
         meta = task.metadata_json if isinstance(task.metadata_json, dict) else _json.loads(task.metadata_json)
         result_summary = meta.get("result_summary")
         submitted_at = meta.get("submitted_at")
+        result_material_ids = set(meta.get("result_material_ids") or [])
+    else:
+        result_material_ids = set()
+
+    result_materials = [
+        material for material in materials
+        if material.is_result or material.id in result_material_ids
+    ]
+    result_material_id_set = {material.id for material in result_materials}
+    normal_materials = [material for material in materials if material.id not in result_material_id_set]
+    agents = db.query(Agent).order_by(Agent.name).all() if admin else []
 
     return templates.TemplateResponse("tasks/detail.html", {
         "request": request,
@@ -411,11 +436,186 @@ async def task_detail_page(
         "creator_label": creator_label,
         "logs": logs,
         "ratings": ratings,
-        "materials": materials,
+        "materials": normal_materials,
+        "result_materials": result_materials,
         "is_admin": admin is not None,
         "result_summary": result_summary,
         "submitted_at": submitted_at,
+        "priorities": list(TaskPriority),
+        "difficulties": list(TaskDifficulty),
+        "agents": agents,
     })
+
+
+@router.get("/tasks/{task_id}/ai-edit", response_class=HTMLResponse)
+async def ai_edit_task_page(
+    request: Request,
+    task_id: str,
+    db: Session = Depends(get_db),
+):
+    from fastapi.responses import RedirectResponse
+    from app.api.middleware.admin_auth import get_current_admin
+    from app.modules.task_board.models.task import Task
+
+    try:
+        admin = await get_current_admin(request, db)
+    except Exception:
+        admin = None
+
+    agent_id = request.headers.get("x-agent-id") or request.cookies.get("agent_id")
+    if not agent_id and not admin:
+        return RedirectResponse(url="/admin/login", status_code=302)
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        return HTMLResponse("<html><body><h1>Task not found</h1><a href='/tasks'>Back to tasks</a></body></html>", status_code=404)
+
+    return templates.TemplateResponse("tasks/ai_edit.html", {
+        "request": request,
+        "task": task,
+    })
+
+
+@router.post("/tasks/{task_id}/edit")
+async def update_task_from_page(
+    request: Request,
+    task_id: str,
+    title: str = Form(...),
+    description: str = Form(""),
+    priority: str = Form("MEDIUM"),
+    difficulty: str = Form(""),
+    assigned_to_agent_code: str = Form(""),
+    points: int = Form(0),
+    estimated_hours: int = Form(0),
+    due_date: str = Form(""),
+    tags: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime
+    from fastapi.responses import RedirectResponse
+    from app.api.middleware.admin_auth import get_current_admin
+    from app.modules.task_board.models.task import Task, TaskPriority, TaskDifficulty
+    from app.models.agent import Agent
+
+    try:
+        await get_current_admin(request, db)
+    except Exception:
+        return RedirectResponse(url="/admin/login", status_code=302)
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        return HTMLResponse("Task not found", status_code=404)
+
+    assigned_to_agent_id = None
+    if assigned_to_agent_code:
+        agent = db.query(Agent).filter(Agent.agent_code == assigned_to_agent_code).first()
+        if agent:
+            assigned_to_agent_id = agent.id
+
+    task_difficulty = None
+    if difficulty:
+        try:
+            task_difficulty = TaskDifficulty(difficulty)
+        except ValueError:
+            task_difficulty = task.difficulty
+
+    task_due_date = None
+    if due_date:
+        try:
+            task_due_date = datetime.fromisoformat(due_date)
+        except ValueError:
+            task_due_date = task.due_date
+
+    task.title = title.strip()
+    task.description = description or None
+    task.priority = TaskPriority(priority)
+    task.difficulty = task_difficulty
+    task.assigned_to_agent_id = assigned_to_agent_id
+    task.points = points
+    task.estimated_hours = estimated_hours if estimated_hours else None
+    task.due_date = task_due_date
+    task.tags_json = [item.strip() for item in tags.split(",") if item.strip()]
+    db.commit()
+
+    return RedirectResponse(url=f"/tasks/{task.id}", status_code=302)
+
+
+@router.post("/tasks/{task_id}/materials/upload")
+async def upload_task_material_from_page(
+    request: Request,
+    task_id: str,
+    title: str = Form(""),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    from fastapi.responses import RedirectResponse
+    from app.api.middleware.admin_auth import get_current_admin
+    from app.modules.task_board.services.material_service import MaterialService
+    from app.modules.task_board.models.task_material import MaterialType
+
+    try:
+        await get_current_admin(request, db)
+    except Exception:
+        return RedirectResponse(url="/admin/login", status_code=302)
+
+    material_title = title.strip() or file.filename or "任务材料"
+    material = MaterialService(db).upload_file_material(
+        task_id=task_id,
+        title=material_title,
+        material_type=MaterialType.FILE,
+        file=file,
+        is_result=False,
+    )
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JSONResponse({
+            "id": material.id,
+            "task_id": material.task_id,
+            "title": material.title,
+            "file_path": material.file_path,
+            "url": material.url,
+        })
+    return RedirectResponse(url=f"/tasks/{task_id}", status_code=302)
+
+
+@router.get("/tasks/materials/{material_id}/download")
+async def task_material_download(
+    request: Request,
+    material_id: str,
+    db: Session = Depends(get_db),
+):
+    from app.api.middleware.admin_auth import get_current_admin
+    from app.core.file_storage import download_bytes_from_storage, get_default_bucket
+    from app.modules.task_board.models.task_material import TaskMaterial
+
+    try:
+        admin = await get_current_admin(request, db)
+    except Exception:
+        admin = None
+    agent_id = request.headers.get("x-agent-id") or request.cookies.get("agent_id")
+    if not agent_id and not admin:
+        return RedirectResponse(url="/admin/login", status_code=302)
+
+    material = db.query(TaskMaterial).filter(TaskMaterial.id == material_id).first()
+    if not material or not material.file_path:
+        return HTMLResponse("File not found", status_code=404)
+
+    local_path = Path(material.file_path)
+    if local_path.exists():
+        data = local_path.read_bytes()
+        filename = material.title or local_path.name
+    else:
+        data = download_bytes_from_storage(
+            bucket=get_default_bucket(),
+            object_key=material.file_path,
+        )
+        filename = material.title or Path(material.file_path).name
+
+    media_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
 
 
 @router.post("/tasks/new")
@@ -497,6 +697,7 @@ async def task_review(
     from fastapi.responses import RedirectResponse
     from app.api.middleware.admin_auth import get_current_admin
     from app.modules.task_board.models.task import Task, TaskStatus
+    from app.modules.task_board.services.task_service import TaskService
 
     try:
         admin = await get_current_admin(request, db)
@@ -507,24 +708,28 @@ async def task_review(
     if not task:
         return RedirectResponse(url=f"/tasks/{task_id}", status_code=302)
 
-    if task.status != TaskStatus.SUBMITTED:
+    if task.status not in {TaskStatus.SUBMITTED, TaskStatus.REVIEW}:
         return RedirectResponse(url=f"/tasks/{task_id}", status_code=302)
 
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc)
-
     if action == "confirm":
-        task.status = TaskStatus.CONFIRMED
-        task.completed_at = now
+        TaskService(db).confirm_task(
+            task_id=task.id,
+            reviewer_admin_uuid=admin.uuid,
+            reason="管理员确认通过",
+        )
     elif action == "reject":
-        task.status = TaskStatus.IN_PROGRESS
-        # 清除之前的提交结果，让 agent 重新提交
-        if task.metadata_json and isinstance(task.metadata_json, dict):
-            task.metadata_json.pop("result_summary", None)
-            task.metadata_json.pop("submitted_at", None)
-
-    task.updated_at = now
-    db.commit()
+        TaskService(db).reject_task(
+            task_id=task.id,
+            reviewer_admin_uuid=admin.uuid,
+            reason="管理员退回修改",
+        )
+        task = db.query(Task).filter(Task.id == task_id).first()
+        if task and task.metadata_json and isinstance(task.metadata_json, dict):
+            metadata = dict(task.metadata_json)
+            metadata.pop("result_summary", None)
+            metadata.pop("submitted_at", None)
+            task.metadata_json = metadata
+            db.commit()
 
     return RedirectResponse(url=f"/tasks/{task_id}", status_code=302)
 
