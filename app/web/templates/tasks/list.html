@@ -28,13 +28,10 @@
                 <label class="filter-label">状态</label>
                 <select name="status" class="form-select form-select-hermes">
                     <option value="">全部状态</option>
-                    <option value="PENDING" {% if status_filter=='PENDING' %}selected{% endif %}>待处理</option>
                     <option value="UNCLAIMED" {% if status_filter=='UNCLAIMED' %}selected{% endif %}>未认领</option>
                     <option value="IN_PROGRESS" {% if status_filter=='IN_PROGRESS' %}selected{% endif %}>进行中</option>
                     <option value="SUBMITTED" {% if status_filter=='SUBMITTED' %}selected{% endif %}>已提交</option>
-                    <option value="REVIEW" {% if status_filter=='REVIEW' %}selected{% endif %}>审核中</option>
                     <option value="CONFIRMED" {% if status_filter=='CONFIRMED' %}selected{% endif %}>已确认</option>
-                    <option value="COMPLETED" {% if status_filter=='COMPLETED' %}selected{% endif %}>已完成</option>
                     <option value="CANCELLED" {% if status_filter=='CANCELLED' %}selected{% endif %}>已取消</option>
                 </select>
             </div>
@@ -91,14 +88,14 @@
                             </div>
                         </td>
                         <td>
-                            <span class="tone-badge {% if task.status.value=='COMPLETED' %}tone-success{% elif task.status.value=='IN_PROGRESS' %}tone-info{% elif task.status.value=='CANCELLED' %}tone-danger{% else %}tone-warn{% endif %}">
-                                {% if task.status.value=='PENDING' %}待处理
+                            <span class="tone-badge {% if task.status.value in ['CONFIRMED', 'COMPLETED'] %}tone-success{% elif task.status.value=='IN_PROGRESS' %}tone-info{% elif task.status.value=='CANCELLED' %}tone-danger{% else %}tone-warn{% endif %}">
+                                {% if task.status.value=='PENDING' %}未认领
                                 {% elif task.status.value=='UNCLAIMED' %}未认领
                                 {% elif task.status.value=='IN_PROGRESS' %}进行中
                                 {% elif task.status.value=='SUBMITTED' %}已提交
-                                {% elif task.status.value=='REVIEW' %}审核中
+                                {% elif task.status.value=='REVIEW' %}已提交
                                 {% elif task.status.value=='CONFIRMED' %}已确认
-                                {% elif task.status.value=='COMPLETED' %}已完成
+                                {% elif task.status.value=='COMPLETED' %}已确认
                                 {% elif task.status.value=='CANCELLED' %}已取消
                                 {% else %}{{ task.status.value }}{% endif %}
                             </span>
@@ -108,9 +105,17 @@
                                 {% if task.priority.value=='LOW' %}低{% elif task.priority.value=='MEDIUM' %}中{% elif task.priority.value=='HIGH' %}高{% elif task.priority.value=='URGENT' %}紧急{% else %}{{ task.priority.value }}{% endif %}
                             </span>
                         </td>
-                        <td><strong>{{ task.points }}</strong></td>
-                        <td>{{ task.assigned_to.name if task.assigned_to else '未指派' }}</td>
-                        <td>{{ task.created_at.strftime('%Y-%m-%d') if task.created_at else '无' }}</td>
+                        <td>
+                            <span class="metric-chip">{{ task.points }}</span>
+                        </td>
+                        <td>
+                            <span class="assignee-chip {% if not task.assigned_to %}is-empty{% endif %}">
+                                {{ task.assigned_to.name if task.assigned_to else '未指派' }}
+                            </span>
+                        </td>
+                        <td>
+                            <time class="date-chip">{{ task.created_at.strftime('%Y-%m-%d') if task.created_at else '无' }}</time>
+                        </td>
                     </tr>
                     {% else %}
                     <tr>
@@ -250,6 +255,7 @@
         padding-bottom: 1rem;
         vertical-align: middle;
         background: transparent;
+        color: rgba(232, 240, 255, 0.9);
     }
 
     .task-link {
@@ -260,6 +266,53 @@
 
     .task-link:hover {
         color: #9bd0ff;
+    }
+
+    .metric-chip,
+    .assignee-chip,
+    .date-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 2.2rem;
+        border-radius: 10px;
+        border: 1px solid rgba(176, 204, 255, 0.18);
+        background: rgba(238, 244, 255, 0.08);
+        color: #eef6ff;
+        font-weight: 700;
+    }
+
+    .metric-chip {
+        justify-content: center;
+        min-width: 2.7rem;
+        padding: 0 0.75rem;
+        color: #c9ffd9;
+        background: rgba(87, 229, 165, 0.12);
+        border-color: rgba(87, 229, 165, 0.24);
+    }
+
+    .assignee-chip {
+        max-width: 15rem;
+        padding: 0 0.85rem;
+        color: #dceaff;
+        background: rgba(143, 184, 255, 0.11);
+        border-color: rgba(143, 184, 255, 0.22);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .assignee-chip.is-empty {
+        color: #ffd391;
+        background: rgba(255, 194, 92, 0.1);
+        border-color: rgba(255, 194, 92, 0.24);
+    }
+
+    .date-chip {
+        padding: 0 0.8rem;
+        color: #cbd8ec;
+        background: rgba(14, 26, 44, 0.72);
+        border-color: rgba(176, 204, 255, 0.14);
+        font-variant-numeric: tabular-nums;
     }
 
     .task-meta {

@@ -1,8 +1,6 @@
 ---
 name: review-s
 description: Review code for quality, bugs, and improvements. Use when user wants to review code with /review-s.
-argument-hint: [optional: file path]
-allowed-tools: Read, Grep, Glob, Bash(git diff:*)
 ---
 
 # Review Skill (/review-s)

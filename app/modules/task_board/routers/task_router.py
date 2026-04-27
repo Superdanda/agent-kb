@@ -245,6 +245,7 @@ def submit_task_result(
     actual_hours: Optional[int] = Query(None),
     lease_token: Optional[str] = Query(None),
     idempotency_key: Optional[str] = Query(None),
+    result_material_ids: Optional[str] = Query(None),
     agent_id: str = Depends(get_current_agent),
     db: Session = Depends(get_db),
 ):
@@ -255,6 +256,7 @@ def submit_task_result(
         actual_hours=actual_hours,
         lease_token=lease_token,
         idempotency_key=idempotency_key,
+        result_material_ids=[item.strip() for item in result_material_ids.split(",") if item.strip()] if result_material_ids else [],
         require_lease=False,
     )
     return {"status": "submitted", "task": TaskResponse.model_validate(task)}

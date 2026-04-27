@@ -1,24 +1,37 @@
 from __future__ import annotations
 
 import json
+import base64
+import mimetypes
+import os
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.middleware.auth import get_current_agent
+from app.api.middleware.auth import get_current_agent, get_current_agent_for_heartbeat
+from app.api.schemas.agent_registration import AgentRegistrationCreate
 from app.api.schemas.learning import LearningSubmit
 from app.api.schemas.post import PostCreate, PostUpdate
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.exceptions import HermesBaseException, ValidationError
+from app.core.exceptions import AuthenticationError, FileValidationError, HermesBaseException, PermissionDeniedError, ResourceNotFoundError, ValidationError
+from app.core.file_storage import UploadBuffer, download_bytes_from_storage, get_default_bucket, validate_standard_upload
+from app.core.security import decrypt_secret, sha256_bytes
+from app.core.storage_client import StorageClientFactory
 from app.models.agent import Agent, AgentStatus
+from app.models.agent_registration import RegistrationStatus
 from app.modules.task_board.models.task import Task, TaskStatus
+from app.modules.task_board.models.task_material import MaterialType, TaskMaterial
 from app.modules.task_board.schemas.task import TaskResponse
+from app.modules.task_board.schemas.task_material import TaskMaterialResponse
+from app.modules.task_board.services.material_service import MaterialService
 from app.modules.task_board.services.task_service import TaskService
 from app.repositories.agent_repo import AgentRepository
+from app.services.agent_registration_service import AgentRegistrationService
 from app.services.agent_scheduler_service import AgentSchedulerService
 from app.services.domain_service import DomainService
 from app.services.learning_service import LearningService
@@ -26,6 +39,8 @@ from app.services.post_service import PostService
 
 
 router = APIRouter(tags=["mcp"])
+
+PUBLIC_TOOLS = {"agent_kb.register", "agent_kb.fetch_credentials"}
 
 
 def _jsonrpc_result(request_id: Any, result: Any) -> JSONResponse:
@@ -78,28 +93,50 @@ def _tool_schema(properties: dict[str, Any], required: list[str] | None = None) 
     }
 
 
+def _tool(
+    name: str,
+    description: str,
+    properties: dict[str, Any],
+    required: list[str] | None = None,
+    auth: str = "hmac",
+) -> dict[str, Any]:
+    return {
+        "name": name,
+        "description": description,
+        "inputSchema": _tool_schema(properties, required),
+        "annotations": {"auth": auth},
+    }
+
+
 def _tool_definitions() -> list[dict[str, Any]]:
     string = {"type": "string"}
     integer = {"type": "integer"}
     boolean = {"type": "boolean"}
     string_array = {"type": "array", "items": string}
+    host_info = {"type": "object", "additionalProperties": True}
     return [
-        {"name": "agent_kb.heartbeat", "description": "Update current Agent heartbeat and online status.", "inputSchema": _tool_schema({})},
-        {"name": "agent_kb.agent_me", "description": "Get current Agent identity and status.", "inputSchema": _tool_schema({})},
-        {"name": "agent_kb.task_list_available", "description": "List tasks assigned to this Agent or currently unclaimed.", "inputSchema": _tool_schema({"statuses": string_array, "limit": integer})},
-        {"name": "agent_kb.task_get", "description": "Get a task by id.", "inputSchema": _tool_schema({"task_id": string}, ["task_id"])},
-        {"name": "agent_kb.task_claim", "description": "Claim a task and receive a lease token.", "inputSchema": _tool_schema({"task_id": string}, ["task_id"])},
-        {"name": "agent_kb.task_submit", "description": "Submit task result using lease and idempotency key.", "inputSchema": _tool_schema({"task_id": string, "result_summary": string, "actual_hours": integer, "lease_token": string, "idempotency_key": string}, ["task_id", "result_summary", "lease_token", "idempotency_key"])},
-        {"name": "agent_kb.task_abandon", "description": "Abandon a claimed task using lease token.", "inputSchema": _tool_schema({"task_id": string, "reason": string, "lease_token": string}, ["task_id", "lease_token"])},
-        {"name": "agent_kb.post_list", "description": "List knowledge posts.", "inputSchema": _tool_schema({"keyword": string, "tag": string, "author": string, "status": string, "domain_id": string, "page": integer, "size": integer})},
-        {"name": "agent_kb.post_get", "description": "Get a knowledge post.", "inputSchema": _tool_schema({"post_id": string}, ["post_id"])},
-        {"name": "agent_kb.post_create", "description": "Create a knowledge post.", "inputSchema": _tool_schema({"title": string, "summary": string, "content_md": string, "tags": string_array, "visibility": string, "status": string, "domain_id": string}, ["title", "domain_id"])},
-        {"name": "agent_kb.post_update", "description": "Update post metadata or create a new version.", "inputSchema": _tool_schema({"post_id": string, "title": string, "summary": string, "content_md": string, "change_type": string, "change_note": string, "visibility": string, "status": string, "tags": string_array}, ["post_id"])},
-        {"name": "agent_kb.learning_submit", "description": "Record learning for a post version.", "inputSchema": _tool_schema({"post_id": string, "version_id": string, "learn_note": string}, ["post_id", "version_id"])},
-        {"name": "agent_kb.learning_list", "description": "List current Agent learning records.", "inputSchema": _tool_schema({"status": string, "only_outdated": boolean, "page": integer, "size": integer})},
-        {"name": "agent_kb.domain_list", "description": "List knowledge domains.", "inputSchema": _tool_schema({"include_inactive": boolean})},
-        {"name": "agent_kb.scheduler_list", "description": "List current Agent schedulers.", "inputSchema": _tool_schema({"enabled": boolean, "limit": integer, "offset": integer})},
-        {"name": "agent_kb.scheduler_create", "description": "Create an Agent scheduler.", "inputSchema": _tool_schema({"task_name": string, "task_type": string, "cron_expression": string, "interval_seconds": integer, "run_at": string, "enabled": boolean}, ["task_name"])},
+        _tool("agent_kb.register", "Submit an Agent registration request before HMAC credentials exist. Supports host_info self-description. Agents should reuse ~/.agent-kb/identity.json agent_code to avoid duplicate registrations.", {"agent_code": string, "name": string, "description": string, "host_info": host_info, "device_name": string, "machine_location": string, "runtime_environment": string, "environment_tags": string_array, "capabilities": string, "self_introduction": string}, ["agent_code", "name"], auth="none"),
+        _tool("agent_kb.fetch_credentials", "Fetch credentials for an approved registration code. The secret key is returned for in-memory use.", {"registration_code": string}, ["registration_code"], auth="none"),
+        _tool("agent_kb.heartbeat", "Update current Agent heartbeat and online status.", {}),
+        _tool("agent_kb.agent_me", "Get current Agent identity and status.", {}),
+        _tool("agent_kb.task_list_available", "List unassigned tasks visible to all Agents plus this Agent's assigned active tasks.", {"statuses": string_array, "limit": integer}),
+        _tool("agent_kb.task_get", "Get a task by id.", {"task_id": string}, ["task_id"]),
+        _tool("agent_kb.task_materials", "List task material metadata visible to the current Agent. Does not return file contents.", {"task_id": string, "include_results": boolean}, ["task_id"]),
+        _tool("agent_kb.material_preview", "Preview one task material. Text files return a bounded text snippet; binary files return a short-lived preview URL.", {"material_id": string, "max_chars": integer, "url_expires": integer}, ["material_id"]),
+        _tool("agent_kb.material_download", "Return a short-lived full-file download URL for one task material.", {"material_id": string, "url_expires": integer}, ["material_id"]),
+        _tool("agent_kb.material_upload", "Upload a result material for the current Agent's claimed task using base64 content. Returns the material id for task_submit.result_material_ids.", {"task_id": string, "filename": string, "content_base64": string, "title": string, "content_type": string, "lease_token": string, "idempotency_key": string, "is_result": boolean}, ["task_id", "filename", "content_base64", "lease_token", "idempotency_key"]),
+        _tool("agent_kb.task_claim", "Claim a task and receive a lease token.", {"task_id": string}, ["task_id"]),
+        _tool("agent_kb.task_submit", "Submit task result using lease and idempotency key.", {"task_id": string, "result_summary": string, "actual_hours": integer, "lease_token": string, "idempotency_key": string, "result_material_ids": string_array}, ["task_id", "result_summary", "lease_token", "idempotency_key"]),
+        _tool("agent_kb.task_abandon", "Abandon a claimed task using lease token.", {"task_id": string, "reason": string, "lease_token": string}, ["task_id", "lease_token"]),
+        _tool("agent_kb.post_list", "List knowledge posts.", {"keyword": string, "tag": string, "author": string, "status": string, "domain_id": string, "page": integer, "size": integer}),
+        _tool("agent_kb.post_get", "Get a knowledge post.", {"post_id": string}, ["post_id"]),
+        _tool("agent_kb.post_create", "Create a knowledge post.", {"title": string, "summary": string, "content_md": string, "tags": string_array, "visibility": string, "status": string, "domain_id": string}, ["title", "domain_id"]),
+        _tool("agent_kb.post_update", "Update post metadata or create a new version.", {"post_id": string, "title": string, "summary": string, "content_md": string, "change_type": string, "change_note": string, "visibility": string, "status": string, "tags": string_array}, ["post_id"]),
+        _tool("agent_kb.learning_submit", "Record learning for a post version.", {"post_id": string, "version_id": string, "learn_note": string}, ["post_id", "version_id"]),
+        _tool("agent_kb.learning_list", "List current Agent learning records.", {"status": string, "only_outdated": boolean, "page": integer, "size": integer}),
+        _tool("agent_kb.domain_list", "List knowledge domains.", {"include_inactive": boolean}),
+        _tool("agent_kb.scheduler_list", "List current Agent schedulers.", {"enabled": boolean, "limit": integer, "offset": integer}),
+        _tool("agent_kb.scheduler_create", "Create an Agent scheduler.", {"task_name": string, "task_type": string, "cron_expression": string, "interval_seconds": integer, "run_at": string, "enabled": boolean}, ["task_name"]),
     ]
 
 
@@ -129,7 +166,214 @@ def _parse_statuses(values: list[str] | None) -> list[TaskStatus] | None:
     return statuses
 
 
-def _call_tool(name: str, arguments: dict[str, Any], agent_id: str, db: Session) -> dict:
+def _base_url(request: Request) -> str:
+    return str(request.base_url).rstrip("/")
+
+
+def _absolute_url(url: str | None, request: Request) -> str | None:
+    if not url:
+        return None
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    if url.startswith("/"):
+        return f"{_base_url(request)}{url}"
+    return url
+
+
+def _material_extension(material: TaskMaterial) -> str:
+    source = material.file_path or material.url or material.title or ""
+    return os.path.splitext(source.lower())[1]
+
+
+def _material_payload(material: TaskMaterial, request: Request) -> dict[str, Any]:
+    ext = _material_extension(material)
+    mime_type = mimetypes.guess_type(material.title or material.file_path or "")[0]
+    return {
+        "id": material.id,
+        "task_id": material.task_id,
+        "title": material.title,
+        "material_type": material.material_type.value if material.material_type else None,
+        "url": _absolute_url(material.url, request),
+        "file_path": material.file_path,
+        "extension": ext,
+        "mime_type": mime_type,
+        "order_index": material.order_index,
+        "is_result": material.is_result,
+        "created_at": material.created_at,
+        "updated_at": material.updated_at,
+        "can_preview": bool(material.content or material.url or material.file_path),
+        "can_download": bool(material.file_path or material.url or material.content),
+    }
+
+
+def _ensure_task_material_access(task: Task, agent_id: str, *, require_assignee: bool = False) -> None:
+    if task.assigned_to_agent_id == agent_id:
+        return
+    if not require_assignee:
+        if task.created_by_agent_id == agent_id:
+            return
+        if not task.assigned_to_agent_id and task.status in {TaskStatus.PENDING, TaskStatus.UNCLAIMED}:
+            return
+    raise PermissionDeniedError("Agent is not allowed to access this task material")
+
+
+def _get_material_for_agent(material_id: str, agent_id: str, db: Session, *, require_assignee: bool = False) -> TaskMaterial:
+    material = db.query(TaskMaterial).filter(TaskMaterial.id == material_id).first()
+    if not material:
+        raise ResourceNotFoundError(f"Material {material_id} not found")
+    _ensure_task_material_access(material.task, agent_id, require_assignee=require_assignee)
+    return material
+
+
+def _storage_url(object_key: str, request: Request, expires: int = 3600) -> str:
+    storage = StorageClientFactory.get_client()
+    url = storage.get_file_url(get_default_bucket(), object_key, expires=expires)
+    return _absolute_url(url, request) or url
+
+
+def _material_access_url(material: TaskMaterial, request: Request, expires: int = 3600) -> tuple[str, str]:
+    if material.url and not material.file_path:
+        return _absolute_url(material.url, request) or material.url, "url"
+    if material.file_path and settings.STORAGE_TYPE == "MINIO":
+        return _storage_url(material.file_path, request, expires=expires), "presigned_url"
+    return f"{_base_url(request)}/mcp/materials/{material.id}/download", "authenticated_url"
+
+
+def _download_material_bytes(material: TaskMaterial) -> bytes:
+    if material.file_path:
+        return download_bytes_from_storage(
+            bucket=get_default_bucket(),
+            object_key=material.file_path,
+            failure_message="Failed to download task material",
+        )
+    if material.content is not None:
+        return material.content.encode("utf-8")
+    raise ValidationError("Material has no downloadable file content")
+
+
+def _preview_material(material: TaskMaterial, request: Request, max_chars: int, url_expires: int) -> dict[str, Any]:
+    ext = _material_extension(material)
+    if material.content is not None:
+        text = material.content[:max_chars]
+        return {
+            "kind": "text",
+            "material": _material_payload(material, request),
+            "text": text,
+            "truncated": len(material.content) > max_chars,
+        }
+
+    if ext in {".txt", ".md", ".json", ".yaml", ".yml"} and material.file_path:
+        data = _download_material_bytes(material)
+        text = data.decode("utf-8", errors="replace")
+        return {
+            "kind": "text",
+            "material": _material_payload(material, request),
+            "text": text[:max_chars],
+            "truncated": len(text) > max_chars,
+        }
+
+    if material.file_path:
+        return {
+            "kind": "url",
+            "material": _material_payload(material, request),
+            "preview_url": _material_access_url(material, request, expires=url_expires)[0],
+            "expires_in": url_expires,
+        }
+
+    if material.url:
+        return {
+            "kind": "url",
+            "material": _material_payload(material, request),
+            "preview_url": _absolute_url(material.url, request),
+            "expires_in": None,
+        }
+
+    raise ValidationError("Material has no previewable content")
+
+
+def _validated_upload_buffer(filename: str, contents: bytes, content_type: str) -> UploadBuffer:
+    file_ext = os.path.splitext(filename.lower())[1]
+    upload = UploadBuffer(
+        contents=contents,
+        original_filename=filename,
+        file_ext=file_ext,
+        content_type=content_type,
+        sha256=sha256_bytes(contents),
+    )
+    validate_standard_upload(upload, error_cls=FileValidationError)
+    return upload
+
+
+def _fetch_credentials_payload(registration_code: str, db: Session, request: Request) -> dict:
+    svc = AgentRegistrationService(db)
+    registration = svc.get_by_code(registration_code)
+    if not registration:
+        raise ResourceNotFoundError(f"Registration request with code {registration_code} not found")
+    if registration.status != RegistrationStatus.APPROVED:
+        raise AuthenticationError("Registration is not yet approved")
+
+    agent = AgentRepository(db).get_by_code(registration.agent_code)
+    if not agent:
+        raise AuthenticationError("Approved agent does not exist")
+
+    credential = agent.credentials.filter_by(status="ACTIVE").first()
+    if not credential:
+        raise ResourceNotFoundError("No active credentials found")
+
+    return {
+        "registration_code": registration_code,
+        "agent_id": agent.id,
+        "agent_code": agent.agent_code,
+        "name": agent.name,
+        "access_key": credential.access_key,
+        "secret_key": decrypt_secret(credential.secret_key_encrypted),
+        "base_url": _base_url(request),
+        "expires_at": None,
+    }
+
+
+def _call_tool(name: str, arguments: dict[str, Any], agent_id: str | None, db: Session, request: Request) -> dict:
+    if name == "agent_kb.register":
+        environment_tags = list(arguments.get("environment_tags") or [])
+        host_info = arguments.get("host_info") or {}
+        runtime_environment = arguments.get("runtime_environment")
+        machine_location = arguments.get("machine_location")
+        if isinstance(host_info, dict):
+            runtime_environment = runtime_environment or host_info.get("runtime_environment")
+            machine_location = machine_location or host_info.get("machine_location") or host_info.get("location")
+        if runtime_environment and runtime_environment not in environment_tags:
+            environment_tags.append(runtime_environment)
+
+        self_introduction_parts = [
+            value for value in (
+                arguments.get("self_introduction") or arguments.get("description"),
+                f"runtime_environment: {runtime_environment}" if runtime_environment else None,
+                f"machine_location: {machine_location}" if machine_location else None,
+                f"host_info: {json.dumps(host_info, ensure_ascii=False)}" if host_info else None,
+            )
+            if value
+        ]
+        data = AgentRegistrationCreate(
+            agent_code=arguments["agent_code"],
+            name=arguments["name"],
+            device_name=arguments.get("device_name") or (host_info.get("hostname") if isinstance(host_info, dict) else None) or machine_location,
+            environment_tags=environment_tags,
+            capabilities=arguments.get("capabilities"),
+            self_introduction="\n".join(self_introduction_parts) if self_introduction_parts else None,
+        )
+        registration, registration_code = AgentRegistrationService(db).create_registration_request(data)
+        return _content({
+            "registration_code": registration_code,
+            "status": registration.status.value if hasattr(registration.status, "value") else registration.status,
+            "message": "Waiting for admin approval",
+        })
+
+    if name == "agent_kb.fetch_credentials":
+        return _content(_fetch_credentials_payload(arguments["registration_code"], db, request))
+
+    if not agent_id:
+        raise AuthenticationError("HMAC authentication is required for this MCP tool")
+
     if name == "agent_kb.heartbeat":
         agent = db.query(Agent).filter(Agent.id == agent_id).first()
         if not agent:
@@ -157,6 +401,102 @@ def _call_tool(name: str, arguments: dict[str, Any], agent_id: str, db: Session)
     if name == "agent_kb.task_get":
         return _content(TaskResponse.model_validate(TaskService(db).get_task(arguments["task_id"])))
 
+    if name == "agent_kb.task_materials":
+        task = TaskService(db).get_task(arguments["task_id"])
+        _ensure_task_material_access(task, agent_id)
+        query = db.query(TaskMaterial).filter(TaskMaterial.task_id == task.id)
+        if not bool(arguments.get("include_results", True)):
+            query = query.filter(TaskMaterial.is_result.is_(False))
+        materials = query.order_by(TaskMaterial.order_index.asc(), TaskMaterial.created_at.asc()).all()
+        return _content({
+            "items": [_material_payload(material, request) for material in materials],
+            "total": len(materials),
+        })
+
+    if name == "agent_kb.material_preview":
+        material = _get_material_for_agent(arguments["material_id"], agent_id, db)
+        return _content(_preview_material(
+            material=material,
+            request=request,
+            max_chars=min(int(arguments.get("max_chars", 8000)), 50000),
+            url_expires=min(int(arguments.get("url_expires", 3600)), 24 * 3600),
+        ))
+
+    if name == "agent_kb.material_download":
+        material = _get_material_for_agent(arguments["material_id"], agent_id, db)
+        if material.file_path:
+            expires = min(int(arguments.get("url_expires", 3600)), 24 * 3600)
+            download_url, delivery = _material_access_url(material, request, expires=expires)
+            return _content({
+                "material": _material_payload(material, request),
+                "download_url": download_url,
+                "expires_in": expires,
+                "delivery": delivery,
+            })
+        if material.url:
+            return _content({
+                "material": _material_payload(material, request),
+                "download_url": _absolute_url(material.url, request),
+                "expires_in": None,
+                "delivery": "url",
+            })
+        if material.content is not None:
+            return _content({
+                "material": _material_payload(material, request),
+                "content": material.content,
+                "delivery": "inline_text",
+            })
+        raise ValidationError("Material has no downloadable content")
+
+    if name == "agent_kb.material_upload":
+        task_svc = TaskService(db)
+        task = task_svc.get_task(arguments["task_id"])
+        _ensure_task_material_access(task, agent_id, require_assignee=True)
+        task_svc.ensure_agent_active_lease(task.id, agent_id, arguments["lease_token"])
+        idempotency_key = arguments.get("idempotency_key")
+        metadata = dict(task.metadata_json or {}) if isinstance(task.metadata_json, dict) else {}
+        upload_receipts = dict(metadata.get("material_upload_receipts") or {})
+        if idempotency_key and upload_receipts.get(idempotency_key):
+            existing = db.query(TaskMaterial).filter(
+                TaskMaterial.id == upload_receipts[idempotency_key],
+                TaskMaterial.task_id == task.id,
+            ).first()
+            if existing:
+                return _content({
+                    "status": "uploaded",
+                    "idempotent_replay": True,
+                    "material": TaskMaterialResponse.model_validate(existing),
+                    "material_id": existing.id,
+                })
+        filename = arguments["filename"]
+        try:
+            contents = base64.b64decode(arguments["content_base64"], validate=True)
+        except Exception as exc:
+            raise ValidationError("content_base64 is not valid base64") from exc
+        if not contents:
+            raise ValidationError("Uploaded material content is empty")
+        content_type = arguments.get("content_type") or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        _validated_upload_buffer(filename, contents, content_type)
+        material = MaterialService(db).upload_bytes_material(
+            task_id=task.id,
+            title=arguments.get("title") or filename,
+            filename=filename,
+            contents=contents,
+            content_type=content_type,
+            material_type=MaterialType.FILE,
+            is_result=bool(arguments.get("is_result", True)),
+        )
+        if idempotency_key:
+            upload_receipts[idempotency_key] = material.id
+            metadata["material_upload_receipts"] = upload_receipts
+            task.metadata_json = metadata
+            db.commit()
+        return _content({
+            "status": "uploaded",
+            "material": TaskMaterialResponse.model_validate(material),
+            "material_id": material.id,
+        })
+
     if name == "agent_kb.task_claim":
         task = TaskService(db).claim_task(arguments["task_id"], agent_id)
         return _content({"task": TaskResponse.model_validate(task), "lease_token": task.lease_token, "lease_expires_at": task.lease_expires_at})
@@ -169,6 +509,7 @@ def _call_tool(name: str, arguments: dict[str, Any], agent_id: str, db: Session)
             actual_hours=arguments.get("actual_hours"),
             lease_token=arguments.get("lease_token"),
             idempotency_key=arguments.get("idempotency_key"),
+            result_material_ids=arguments.get("result_material_ids") or [],
             require_lease=True,
         )
         return _content({"status": "submitted", "task": TaskResponse.model_validate(task)})
@@ -264,7 +605,6 @@ def _call_tool(name: str, arguments: dict[str, Any], agent_id: str, db: Session)
 @router.post("/mcp")
 async def mcp_post(
     request: Request,
-    agent_id: str = Depends(get_current_agent),
     db: Session = Depends(get_db),
 ):
     _validate_origin(request)
@@ -282,7 +622,13 @@ async def mcp_post(
             return _jsonrpc_result(request_id, {
                 "protocolVersion": "2025-06-18",
                 "serverInfo": {"name": "agent-kb", "version": "1.0.0"},
-                "capabilities": {"tools": {"listChanged": False}},
+                "capabilities": {
+                    "tools": {"listChanged": False},
+                    "agent_credential": {"register": True, "fetch": True, "in_memory_recommended": True},
+                },
+                "auth_methods": ["hmac"],
+                "public_tools": sorted(PUBLIC_TOOLS),
+                "protected_tools_auth": "hmac",
             })
         if method == "ping":
             return _jsonrpc_result(request_id, {})
@@ -293,7 +639,13 @@ async def mcp_post(
             arguments = params.get("arguments") or {}
             if not name:
                 raise ValidationError("Tool name is required")
-            return _jsonrpc_result(request_id, _call_tool(name, arguments, agent_id, db))
+            agent_id = None
+            if name not in PUBLIC_TOOLS:
+                if name == "agent_kb.heartbeat":
+                    agent_id = await get_current_agent_for_heartbeat(request, db)
+                else:
+                    agent_id = await get_current_agent(request, db)
+            return _jsonrpc_result(request_id, _call_tool(name, arguments, agent_id, db, request))
         return _jsonrpc_error(request_id, -32601, f"Method not found: {method}")
     except HermesBaseException as exc:
         return _jsonrpc_error(request_id, -32000, exc.detail, {"code": exc.code})
@@ -301,10 +653,28 @@ async def mcp_post(
         return _jsonrpc_error(request_id, -32603, str(exc))
 
 
+@router.get("/mcp/materials/{material_id}/download")
+async def mcp_material_download(
+    request: Request,
+    material_id: str,
+    agent_id: str = Depends(get_current_agent),
+    db: Session = Depends(get_db),
+):
+    _validate_origin(request)
+    material = _get_material_for_agent(material_id, agent_id, db)
+    data = _download_material_bytes(material)
+    filename = material.title or material.file_path or f"{material.id}.bin"
+    media_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    return StreamingResponse(
+        iter([data]),
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
+
+
 @router.get("/mcp")
 async def mcp_get(
     request: Request,
-    agent_id: str = Depends(get_current_agent),
 ):
     _validate_origin(request)
     if "text/event-stream" not in request.headers.get("accept", ""):
@@ -314,7 +684,7 @@ async def mcp_get(
         payload = {
             "jsonrpc": "2.0",
             "method": "notifications/message",
-            "params": {"level": "info", "data": f"agent-kb MCP stream connected for {agent_id}"},
+            "params": {"level": "info", "data": "agent-kb MCP stream connected"},
         }
         yield f"event: message\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 

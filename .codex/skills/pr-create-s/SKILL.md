@@ -1,8 +1,6 @@
 ---
 name: pr-create-s
 description: Create a pull request with auto-detected context. Use when user wants to create a pull request with /pr-create-s.
-argument-hint: [title] [description]
-allowed-tools: Bash(git:*), Bash(gh:*)
 ---
 
 # PR Create Skill (/pr-create-s)

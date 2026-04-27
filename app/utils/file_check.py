@@ -4,12 +4,15 @@ import os
 import unicodedata
 from typing import Tuple
 
-ALLOWED_EXTENSIONS = {".md", ".txt", ".pdf", ".docx", ".zip", ".yaml", ".yml"}
+ALLOWED_EXTENSIONS = {
+    ".md", ".txt", ".pdf", ".docx", ".zip", ".yaml", ".yml", ".json",
+    ".jpg", ".jpeg", ".png",
+}
 DENIED_EXTENSIONS = {
     ".exe", ".bat", ".cmd", ".ps1", ".sh", ".py", ".jar", ".html",
     ".svg", ".dll", ".js", ".msi", ".com", ".scr", ".vbs", ".wsf",
 }
-TEXT_EXTENSIONS = {".md", ".txt", ".yaml", ".yml"}
+TEXT_EXTENSIONS = {".md", ".txt", ".json", ".yaml", ".yml"}
 
 
 def normalize_filename(filename: str) -> str:
@@ -51,7 +54,7 @@ def _looks_like_utf8_text(header_bytes: bytes) -> bool:
 def get_magic_type(header_bytes: bytes) -> str:
     """Determine file type from magic bytes in the header.
 
-    Returns: "pdf", "zip", "exe", "text", or "unknown".
+    Returns: "pdf", "zip", "exe", "png", "jpg", "text", or "unknown".
     """
     if len(header_bytes) < 2:
         return "unknown"
@@ -64,6 +67,12 @@ def get_magic_type(header_bytes: bytes) -> str:
 
     if header_bytes[:2] == b"MZ":
         return "exe"
+
+    if header_bytes[:8] == b"\x89PNG\r\n\x1a\n":
+        return "png"
+
+    if header_bytes[:3] == b"\xff\xd8\xff":
+        return "jpg"
 
     if _looks_like_utf8_text(header_bytes):
         return "text"
@@ -81,7 +90,7 @@ def validate_magic_number(file_bytes: bytes) -> Tuple[bool, str]:
     """
     magic_type = get_magic_type(file_bytes)
 
-    if magic_type in {"pdf", "zip", "text"}:
+    if magic_type in {"pdf", "zip", "text", "png", "jpg"}:
         return True, magic_type
     if magic_type == "exe":
         return False, "exe"

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from app.modules.task_board.models.task import Task, TaskStatus, TaskPriority, TaskDifficulty
+from app.modules.task_board.models.task_material import TaskMaterial
 from app.modules.task_board.models.task_status_log import TaskStatusLog
 from app.modules.task_board.models.task_submission_receipt import TaskSubmissionReceipt
 from app.modules.task_board.services.task_state_machine import (
@@ -220,6 +221,7 @@ class TaskService:
         actual_hours: Optional[int] = None,
         lease_token: Optional[str] = None,
         idempotency_key: Optional[str] = None,
+        result_material_ids: Optional[List[str]] = None,
         require_lease: bool = False,
     ) -> Task:
         task = (
@@ -273,7 +275,9 @@ class TaskService:
         metadata = task.metadata_json or {}
         metadata["result_summary"] = result_summary.strip()
         metadata["submitted_at"] = datetime.now(timezone.utc).isoformat()
+        metadata["result_material_ids"] = result_material_ids or []
         task.metadata_json = metadata
+        self._mark_result_materials(task_id, result_material_ids or [])
         if idempotency_key:
             self.db.add(
                 TaskSubmissionReceipt(
@@ -298,6 +302,7 @@ class TaskService:
                 "from_status": old_status.value if old_status else None,
                 "to_status": task.status.value,
                 "idempotency_key": idempotency_key,
+                "result_material_ids": result_material_ids or [],
             },
         )
         return task
@@ -446,11 +451,14 @@ class TaskService:
         statuses: Optional[List[TaskStatus]] = None,
         limit: int = 10,
     ) -> List[Task]:
-        status_values = statuses or [TaskStatus.PENDING, TaskStatus.UNCLAIMED]
+        status_values = statuses or [TaskStatus.PENDING, TaskStatus.UNCLAIMED, TaskStatus.IN_PROGRESS]
         return (
             self.db.query(Task)
             .filter(
-                ((Task.assigned_to_agent_id == agent_id) | (Task.assigned_to_agent_id.is_(None))),
+                (
+                    ((Task.assigned_to_agent_id == agent_id) & (Task.status.in_(status_values)))
+                    | ((Task.assigned_to_agent_id.is_(None)) & (Task.status.in_([TaskStatus.PENDING, TaskStatus.UNCLAIMED])))
+                ),
                 Task.status.in_(status_values),
             )
             .order_by(Task.priority.desc(), Task.created_at.asc())
@@ -520,6 +528,12 @@ class TaskService:
         self.db.commit()
         return True
 
+    def ensure_agent_active_lease(self, task_id: str, agent_id: str, lease_token: str) -> Task:
+        task = self.get_task(task_id)
+        self._ensure_assignee(task, agent_id)
+        self._ensure_active_lease(task, lease_token)
+        return task
+
     def get_task_status_logs(self, task_id: str) -> List[TaskStatusLog]:
         task = self.get_task(task_id)
         return task.status_logs.all()
@@ -577,6 +591,18 @@ class TaskService:
         """Check if uuid_str exists in agents table"""
         from app.models.agent import Agent
         return self.db.query(Agent).filter(Agent.id == uuid_str).first() is not None
+
+    def _mark_result_materials(self, task_id: str, material_ids: List[str]) -> None:
+        if not material_ids:
+            return
+        materials = (
+            self.db.query(TaskMaterial)
+            .filter(TaskMaterial.task_id == task_id, TaskMaterial.id.in_(material_ids))
+            .all()
+        )
+        for material in materials:
+            material.is_result = True
+            material.updated_at = datetime.now(timezone.utc)
 
     def _log_activity(
         self,

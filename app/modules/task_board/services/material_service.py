@@ -24,6 +24,7 @@ class MaterialService:
         url: Optional[str] = None,
         file_path: Optional[str] = None,
         order_index: int = 0,
+        is_result: bool = False,
     ) -> TaskMaterial:
         self.ensure_task_exists(task_id)
         material = TaskMaterial(
@@ -35,6 +36,7 @@ class MaterialService:
             url=url,
             file_path=file_path,
             order_index=order_index,
+            is_result=is_result,
         )
         self.db.add(material)
         self.db.commit()
@@ -112,6 +114,7 @@ class MaterialService:
         title: str,
         file: UploadFile,
         material_type: MaterialType = MaterialType.FILE,
+        is_result: bool = False,
     ) -> TaskMaterial:
         upload = read_upload_buffer(file)
         object_suffix = upload.file_ext or ""
@@ -128,4 +131,35 @@ class MaterialService:
             title=title,
             file_path=object_key,
             url=file_url,
+            is_result=is_result,
+        )
+
+    def upload_bytes_material(
+        self,
+        task_id: str,
+        title: str,
+        filename: str,
+        contents: bytes,
+        content_type: str = "application/octet-stream",
+        material_type: MaterialType = MaterialType.FILE,
+        is_result: bool = False,
+    ) -> TaskMaterial:
+        self.ensure_task_exists(task_id)
+        object_suffix = ""
+        if "." in filename:
+            object_suffix = "." + filename.rsplit(".", 1)[-1].lower()
+        object_key = f"task_materials/{task_id}/{uuid.uuid4()}{object_suffix}"
+        file_url = upload_bytes_to_storage(
+            bucket=get_default_bucket(),
+            object_key=object_key,
+            data=contents,
+            content_type=content_type,
+        )
+        return self.create_material(
+            task_id=task_id,
+            material_type=material_type,
+            title=title,
+            file_path=object_key,
+            url=file_url,
+            is_result=is_result,
         )

@@ -1,9 +1,6 @@
 ---
 name: commit-s
 description: Quick git commit with auto-generated or specified message. Use when user wants to create a git commit with /commit-s.
-argument-hint: [optional: commit message]
-allowed-tools: Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*)
-model: haiku
 ---
 
 # Commit Skill (/commit-s)

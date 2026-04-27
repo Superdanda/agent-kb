@@ -21,6 +21,7 @@ def create_material(
     url: Optional[str] = None,
     file_path: Optional[str] = None,
     order_index: int = 0,
+    is_result: bool = False,
     agent_id: str = Depends(get_current_agent),
     db: Session = Depends(get_db),
 ):
@@ -32,6 +33,7 @@ def create_material(
         url=url,
         file_path=file_path,
         order_index=order_index,
+        is_result=is_result,
     )
     return TaskMaterialResponse.model_validate(material)
 
@@ -104,6 +106,7 @@ def upload_material_file(
     task_id: str = Form(...),
     title: str = Form(...),
     material_type: MaterialType = Form(MaterialType.FILE),
+    is_result: bool = Form(False),
     file: UploadFile = File(...),
     agent_id: str = Depends(get_current_agent),
     db: Session = Depends(get_db),
@@ -114,5 +117,6 @@ def upload_material_file(
         title=title,
         material_type=material_type,
         file=file,
+        is_result=is_result,
     )
     return TaskMaterialResponse.model_validate(material)

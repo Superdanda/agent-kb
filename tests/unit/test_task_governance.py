@@ -8,6 +8,8 @@ from app.core.database import Base
 from app.core.exceptions import PermissionDeniedError
 from app.models import Agent
 from app.modules.task_board.models.task import TaskStatus
+from app.modules.task_board.models.task_material import MaterialType
+from app.modules.task_board.services.material_service import MaterialService
 from app.modules.task_board.services.task_service import TaskService
 
 
@@ -101,3 +103,62 @@ def test_recover_expired_lease_returns_task_to_unclaimed(db):
     assert claimed.status == TaskStatus.UNCLAIMED
     assert claimed.assigned_to_agent_id is None
     assert claimed.lease_token is None
+
+
+def test_available_tasks_include_current_agent_in_progress(db):
+    agent = Agent(id="agent-1", agent_code="agent-1", name="Agent 1")
+    db.add(agent)
+    db.commit()
+
+    task = TaskService(db).create_task(title="Work item")
+    claimed = TaskService(db).claim_task(task.id, agent.id)
+
+    tasks = TaskService(db).list_available_tasks(agent.id)
+
+    assert [item.id for item in tasks] == [claimed.id]
+
+
+def test_unassigned_task_is_visible_to_all_agents_until_claimed(db):
+    agent_1 = Agent(id="agent-1", agent_code="agent-1", name="Agent 1")
+    agent_2 = Agent(id="agent-2", agent_code="agent-2", name="Agent 2")
+    db.add_all([agent_1, agent_2])
+    db.commit()
+
+    task = TaskService(db).create_task(title="Open work item")
+
+    assert [item.id for item in TaskService(db).list_available_tasks(agent_1.id)] == [task.id]
+    assert [item.id for item in TaskService(db).list_available_tasks(agent_2.id)] == [task.id]
+
+    claimed = TaskService(db).claim_task(task.id, agent_1.id)
+
+    assert claimed.assigned_to_agent_id == agent_1.id
+    assert [item.id for item in TaskService(db).list_available_tasks(agent_1.id)] == [task.id]
+    assert TaskService(db).list_available_tasks(agent_2.id) == []
+
+
+def test_submit_marks_result_materials(db):
+    agent = Agent(id="agent-1", agent_code="agent-1", name="Agent 1")
+    db.add(agent)
+    db.commit()
+
+    task = TaskService(db).create_task(title="Work item")
+    claimed = TaskService(db).claim_task(task.id, agent.id)
+    material = MaterialService(db).create_material(
+        task_id=claimed.id,
+        material_type=MaterialType.FILE,
+        title="result.zip",
+        file_path="task_materials/result.zip",
+    )
+
+    TaskService(db).submit_task_result(
+        task_id=claimed.id,
+        agent_id=agent.id,
+        result_summary="done",
+        lease_token=claimed.lease_token,
+        idempotency_key="submit-1",
+        result_material_ids=[material.id],
+        require_lease=True,
+    )
+    db.refresh(material)
+
+    assert material.is_result is True

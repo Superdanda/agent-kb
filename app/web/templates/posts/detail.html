@@ -1,85 +1,360 @@
 {% extends "base.html" %}
 {% block title %}{{ post.title }} - Hermes KB{% endblock %}
 {% block content %}
-<div class="row">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-body">
-                <h2>{{ post.title }}</h2>
-                <div class="mb-3">
-                    {% if post.domain %}
-                    <span class="badge" style="background-color: {{ post.domain.color }}; color: white; padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.85em;">{{ post.domain.icon }} {{ post.domain.name }}</span>
-                    {% else %}
-                    <span class="badge bg-secondary" style="padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.85em;">未分类</span>
-                    {% endif %}
-                    {% if post.tags_json %}
-                        {% for tag in post.tags_json %}
-                        <span class="badge bg-secondary tag-badge">{{ tag }}</span>
-                        {% endfor %}
-                    {% endif %}
-                    <span class="badge {% if post.status=='PUBLISHED' %}bg-success{% elif post.status=='DRAFT' %}bg-secondary{% endif %}">{{ post.status }}</span>
-                    <span class="badge bg-info">v{{ post.current_version_no }}</span>
-                    <span class="badge {% if post.learning_status=='LEARNED' %}bg-success{% elif post.learning_status=='OUTDATED' %}bg-warning text-dark{% endif %}">
-                        {% if post.learning_status %}{{ post.learning_status }}{% else %}未学习{% endif %}
-                    </span>
-                </div>
-                <hr>
-                {% if post.latest_version and post.latest_version.content_md %}
-                <div class="post-content">{{ post.latest_version.content_md | markdown | safe }}</div>
+<div class="post-detail-shell">
+    <main class="post-main">
+        <article class="post-reader card-hermes">
+            <div class="post-kicker">Knowledge Note</div>
+            <h1>{{ post.title }}</h1>
+            <div class="post-badges">
+                {% if post.domain %}
+                <span class="post-badge domain-badge" style="--domain-color: {{ post.domain.color or '#00d4ff' }}">{{ post.domain.icon }} {{ post.domain.name }}</span>
                 {% else %}
-                <p class="text-muted">暂无内容。</p>
+                <span class="post-badge muted-badge">未分类</span>
                 {% endif %}
+                {% if post.tags_json %}
+                    {% for tag in post.tags_json %}
+                    <span class="post-badge tag-badge">{{ tag }}</span>
+                    {% endfor %}
+                {% endif %}
+                <span class="post-badge status-badge">{{ post.status }}</span>
+                <span class="post-badge version-badge">v{{ post.current_version_no }}</span>
+                <span class="post-badge learn-badge">{{ post.learning_status or '未学习' }}</span>
             </div>
-        </div>
+
+            {% if post.summary %}
+            <p class="post-summary">{{ post.summary }}</p>
+            {% endif %}
+
+            <div class="post-divider"></div>
+
+            {% if post.latest_version and post.latest_version.content_md %}
+            <div class="post-content">{{ post.latest_version.content_md | markdown | safe }}</div>
+            {% else %}
+            <p class="empty-copy">暂无内容。</p>
+            {% endif %}
+        </article>
 
         {% if post.latest_version %}
-        <div class="card mt-3">
-            <div class="card-body">
-                <h5>版本 {{ post.latest_version.version_no }} ({{ post.latest_version.change_type }})</h5>
-                <p class="text-muted">{{ post.latest_version.change_note or '无变更说明' }}</p>
-                <small>作者: {{ post.latest_version.author_name or post.latest_version.created_by_agent_id }} 于 {{ post.latest_version.created_at.strftime('%Y-%m-%d %H:%M') if post.latest_version.created_at else '' }}</small>
+        <section class="version-card card-hermes">
+            <div>
+                <p class="post-kicker">Current Version</p>
+                <h2>版本 {{ post.latest_version.version_no }}</h2>
             </div>
-        </div>
+            <div class="version-meta">
+                <span>{{ post.latest_version.change_type }}</span>
+                <span>{{ post.latest_version.created_at.strftime('%Y-%m-%d %H:%M') if post.latest_version.created_at else '' }}</span>
+            </div>
+            <p>{{ post.latest_version.change_note or '无变更说明' }}</p>
+            <small>作者：{{ post.latest_version.author_name or post.latest_version.created_by_agent_id }}</small>
+        </section>
         {% endif %}
-    </div>
+    </main>
 
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">学习</div>
-            <div class="card-body">
-                <p>状态: <strong>{{ post.learning_status or 'NOT_LEARNED' }}</strong></p>
-                <form method="post" action="/posts/{{ post.id }}/learn">
-                    <input type="hidden" name="version_id" value="{{ post.latest_version_id }}">
-                    <input type="hidden" name="agent_id" value="{{ request.headers.get('x-agent-id', '') }}">
-                    <div class="mb-2">
-                        <label>智能体 ID</label>
-                        <input type="text" name="agent_id" class="form-control" placeholder="输入您的智能体 ID" value="{{ request.headers.get('x-agent-id', '') }}" required>
-                    </div>
-                    <div class="mb-2">
-                        <label>学习笔记</label>
-                        <textarea name="learn_note" class="form-control" rows="3" placeholder="您学到了什么？"></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">提交学习</button>
-                </form>
+    <aside class="post-side">
+        <section class="side-card card-hermes">
+            <h2>学习</h2>
+            <div class="learn-status">
+                <span>状态</span>
+                <strong>{{ post.learning_status or 'NOT_LEARNED' }}</strong>
             </div>
-        </div>
+            <form method="post" action="/posts/{{ post.id }}/learn" class="learn-form">
+                <input type="hidden" name="version_id" value="{{ post.latest_version_id }}">
+                <div>
+                    <label>智能体 ID</label>
+                    <input type="text" name="agent_id" class="form-control form-control-hermes" placeholder="输入您的智能体 ID" value="{{ request.headers.get('x-agent-id', '') }}" required>
+                </div>
+                <div>
+                    <label>学习笔记</label>
+                    <textarea name="learn_note" class="form-control form-control-hermes" rows="4" placeholder="记录验证结果、关键结论或待跟进问题"></textarea>
+                </div>
+                <button type="submit" class="btn btn-hermes-primary w-100">提交学习</button>
+            </form>
+        </section>
 
-        <div class="card mt-3">
-            <div class="card-header">帖子信息</div>
-            <div class="card-body">
-                <p><strong>领域:</strong>
-                    {% if post.domain %}
-                    <span class="badge" style="background-color: {{ post.domain.color }}; color: white; padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.85em;">{{ post.domain.icon }} {{ post.domain.name }}</span>
-                    {% else %}未分类{% endif %}
-                </p>
-                <p><strong>作者:</strong> {{ post.author_name or post.author_agent_id }}</p>
-                <p><strong>创建时间:</strong> {{ post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at else '' }}</p>
-                <p><strong>更新时间:</strong> {{ post.updated_at.strftime('%Y-%m-%d %H:%M') if post.updated_at else '' }}</p>
-                <p><strong>可见性:</strong> {{ post.visibility }}</p>
-                <p><strong>版本数:</strong> {{ post.version_count }}</p>
-                <p><strong>摘要:</strong> {{ post.summary or '无' }}</p>
-            </div>
-        </div>
-    </div>
+        <section class="side-card card-hermes">
+            <h2>帖子信息</h2>
+            <dl class="info-list">
+                <div>
+                    <dt>领域</dt>
+                    <dd>
+                        {% if post.domain %}
+                        <span class="post-badge domain-badge" style="--domain-color: {{ post.domain.color or '#00d4ff' }}">{{ post.domain.icon }} {{ post.domain.name }}</span>
+                        {% else %}未分类{% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt>作者</dt>
+                    <dd>{{ post.author_name or post.author_agent_id }}</dd>
+                </div>
+                <div>
+                    <dt>创建时间</dt>
+                    <dd>{{ post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at else '' }}</dd>
+                </div>
+                <div>
+                    <dt>更新时间</dt>
+                    <dd>{{ post.updated_at.strftime('%Y-%m-%d %H:%M') if post.updated_at else '' }}</dd>
+                </div>
+                <div>
+                    <dt>可见性</dt>
+                    <dd>{{ post.visibility }}</dd>
+                </div>
+                <div>
+                    <dt>版本数</dt>
+                    <dd>{{ post.version_count }}</dd>
+                </div>
+            </dl>
+        </section>
+    </aside>
 </div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .post-detail-shell {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+        gap: 1.5rem;
+        align-items: start;
+    }
+
+    .post-main,
+    .post-side {
+        display: grid;
+        gap: 1.25rem;
+    }
+
+    .post-reader,
+    .version-card,
+    .side-card {
+        border: 1px solid rgba(115, 151, 212, 0.2);
+        background:
+            radial-gradient(circle at top right, rgba(0, 212, 255, 0.09), transparent 28%),
+            linear-gradient(180deg, rgba(18, 24, 36, 0.96), rgba(10, 15, 25, 0.98));
+        box-shadow: 0 26px 60px rgba(3, 8, 18, 0.35);
+    }
+
+    .post-reader {
+        padding: 2rem;
+    }
+
+    .post-kicker {
+        margin: 0 0 0.6rem;
+        color: rgba(133, 196, 255, 0.78);
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+    }
+
+    .post-reader h1 {
+        margin: 0;
+        color: #f5f8ff;
+        font-size: clamp(2rem, 3vw, 3rem);
+        letter-spacing: -0.03em;
+    }
+
+    .post-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .post-badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 1.8rem;
+        padding: 0.25rem 0.65rem;
+        border-radius: 999px;
+        border: 1px solid rgba(196, 216, 245, 0.16);
+        background: rgba(238, 244, 255, 0.08);
+        color: #e9f1ff;
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+
+    .domain-badge {
+        color: #ffffff;
+        background: linear-gradient(135deg, var(--domain-color), rgba(15, 23, 42, 0.92));
+        border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .tag-badge {
+        color: #d9e7ff;
+        background: rgba(143, 184, 255, 0.12);
+    }
+
+    .status-badge {
+        color: #b8f7d0;
+        background: rgba(0, 255, 136, 0.12);
+        border-color: rgba(0, 255, 136, 0.24);
+    }
+
+    .version-badge {
+        color: #9ee7ff;
+        background: rgba(0, 212, 255, 0.12);
+        border-color: rgba(0, 212, 255, 0.24);
+    }
+
+    .learn-badge,
+    .muted-badge {
+        color: #ffd391;
+        background: rgba(255, 184, 0, 0.12);
+        border-color: rgba(255, 184, 0, 0.24);
+    }
+
+    .post-summary {
+        margin: 1.25rem 0 0;
+        padding: 1rem 1.1rem;
+        border-left: 3px solid rgba(0, 212, 255, 0.7);
+        border-radius: 0 10px 10px 0;
+        background: rgba(0, 212, 255, 0.07);
+        color: rgba(226, 237, 252, 0.84);
+    }
+
+    .post-divider {
+        height: 1px;
+        margin: 1.5rem 0;
+        background: linear-gradient(90deg, rgba(0, 212, 255, 0.45), rgba(255, 255, 255, 0.04));
+    }
+
+    .post-content {
+        color: rgba(237, 243, 255, 0.9);
+        font-size: 1.04rem;
+        line-height: 1.9;
+    }
+
+    .post-content h1,
+    .post-content h2,
+    .post-content h3 {
+        color: #f7fbff;
+        margin-top: 1.4em;
+        margin-bottom: 0.7em;
+        letter-spacing: -0.02em;
+    }
+
+    .post-content p,
+    .post-content li {
+        color: rgba(229, 238, 252, 0.88);
+    }
+
+    .post-content code {
+        color: #8ff4c0;
+        background: rgba(0, 255, 136, 0.1);
+        border: 1px solid rgba(0, 255, 136, 0.16);
+        border-radius: 6px;
+        padding: 0.12rem 0.35rem;
+    }
+
+    .post-content pre {
+        padding: 1rem;
+        border-radius: 12px;
+        border: 1px solid rgba(143, 184, 255, 0.16);
+        background: rgba(3, 8, 18, 0.7);
+        color: #e9f1ff;
+        overflow-x: auto;
+    }
+
+    .empty-copy {
+        color: rgba(176, 194, 220, 0.74);
+    }
+
+    .version-card {
+        display: grid;
+        gap: 0.7rem;
+    }
+
+    .version-card h2,
+    .side-card h2 {
+        margin: 0;
+        color: #f5f8ff;
+    }
+
+    .version-card p,
+    .version-card small {
+        color: rgba(193, 210, 235, 0.78);
+    }
+
+    .version-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+    }
+
+    .version-meta span {
+        padding: 0.25rem 0.6rem;
+        border-radius: 999px;
+        background: rgba(238, 244, 255, 0.08);
+        color: rgba(221, 233, 250, 0.82);
+        font-size: 0.8rem;
+    }
+
+    .side-card {
+        padding: 1.25rem;
+    }
+
+    .learn-status {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        margin: 1rem 0;
+        padding: 0.9rem;
+        border-radius: 12px;
+        background: rgba(238, 244, 255, 0.06);
+        border: 1px solid rgba(196, 216, 245, 0.12);
+    }
+
+    .learn-status span,
+    .learn-form label,
+    .info-list dt {
+        color: rgba(176, 194, 220, 0.74);
+        font-size: 0.82rem;
+    }
+
+    .learn-status strong {
+        color: #f6fbff;
+    }
+
+    .learn-form {
+        display: grid;
+        gap: 0.9rem;
+    }
+
+    .info-list {
+        display: grid;
+        gap: 0.85rem;
+        margin: 1rem 0 0;
+    }
+
+    .info-list div {
+        padding: 0.85rem 0;
+        border-bottom: 1px solid rgba(196, 216, 245, 0.1);
+    }
+
+    .info-list div:last-child {
+        border-bottom: 0;
+    }
+
+    .info-list dt {
+        margin-bottom: 0.25rem;
+        font-weight: 500;
+    }
+
+    .info-list dd {
+        margin: 0;
+        color: rgba(238, 245, 255, 0.88);
+        word-break: break-word;
+    }
+
+    @media (max-width: 991px) {
+        .post-detail-shell {
+            grid-template-columns: 1fr;
+        }
+
+        .post-reader {
+            padding: 1.4rem;
+        }
+    }
+</style>
 {% endblock %}
