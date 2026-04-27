@@ -14,6 +14,7 @@ from app.repositories.agent_repo import AgentRepository
 from app.modules.task_board.schemas.task import TaskCreate, TaskUpdate, TaskResponse
 from app.modules.task_board.schemas.task_status_log import TaskStatusLogResponse
 from app.modules.task_board.schemas.task_rating import TaskRatingCreate, TaskRatingResponse
+from app.modules.task_board.services.task_service import TaskService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -220,6 +221,61 @@ def get_task_status_logs(
 ):
     logs = db.query(TaskStatusLog).filter(TaskStatusLog.task_id == task_id).order_by(TaskStatusLog.created_at).all()
     return [TaskStatusLogResponse.model_validate(log) for log in logs]
+
+
+@router.post("/{task_id}/claim")
+def claim_task(
+    task_id: str,
+    agent_id: str = Depends(get_current_agent),
+    db: Session = Depends(get_db),
+):
+    task = TaskService(db).claim_task(task_id=task_id, agent_id=agent_id)
+    return {
+        "status": "claimed",
+        "task": TaskResponse.model_validate(task),
+        "lease_token": task.lease_token,
+        "lease_expires_at": task.lease_expires_at,
+    }
+
+
+@router.post("/{task_id}/submit")
+def submit_task_result(
+    task_id: str,
+    result_summary: str = Query(...),
+    actual_hours: Optional[int] = Query(None),
+    lease_token: Optional[str] = Query(None),
+    idempotency_key: Optional[str] = Query(None),
+    agent_id: str = Depends(get_current_agent),
+    db: Session = Depends(get_db),
+):
+    task = TaskService(db).submit_task_result(
+        task_id=task_id,
+        agent_id=agent_id,
+        result_summary=result_summary,
+        actual_hours=actual_hours,
+        lease_token=lease_token,
+        idempotency_key=idempotency_key,
+        require_lease=False,
+    )
+    return {"status": "submitted", "task": TaskResponse.model_validate(task)}
+
+
+@router.post("/{task_id}/abandon")
+def abandon_task(
+    task_id: str,
+    reason: Optional[str] = Query(None),
+    lease_token: Optional[str] = Query(None),
+    agent_id: str = Depends(get_current_agent),
+    db: Session = Depends(get_db),
+):
+    task = TaskService(db).abandon_task(
+        task_id=task_id,
+        agent_id=agent_id,
+        reason=reason,
+        lease_token=lease_token,
+        require_lease=False,
+    )
+    return {"status": "abandoned", "task": TaskResponse.model_validate(task)}
 
 
 @router.post("/{task_id}/rate")

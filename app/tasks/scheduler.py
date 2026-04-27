@@ -43,6 +43,15 @@ def init_scheduler() -> BackgroundScheduler:
         replace_existing=True,
     )
 
+    from app.tasks.task_lease_recovery import run_task_lease_recovery
+    scheduler.add_job(
+        run_task_lease_recovery,
+        CronTrigger(second=15),
+        id="task_lease_recovery",
+        name="Recover expired task leases",
+        replace_existing=True,
+    )
+
     # Check agent heartbeat status every minute
     from app.tasks.agent_heartbeat_check import run_heartbeat_check
     scheduler.add_job(
@@ -76,4 +85,3 @@ def run_agent_scheduler_poll():
         execute_due_schedulers()
     except Exception as e:
         logger.error(f"Agent scheduler poll error: {e}")
-

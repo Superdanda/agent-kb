@@ -47,6 +47,9 @@ class TaskResponse(BaseModel):
     due_date: Optional[datetime] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    lease_token: Optional[str] = None
+    lease_expires_at: Optional[datetime] = None
+    lease_renewed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

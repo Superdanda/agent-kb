@@ -47,10 +47,15 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     ENVIRONMENT: str = "dev"
+    MCP_ALLOWED_ORIGINS: str = '["http://localhost", "http://127.0.0.1"]'
 
     @property
     def allowed_extensions_list(self) -> List[str]:
         return json.loads(self.ALLOWED_EXTENSIONS)
+
+    @property
+    def mcp_allowed_origins_list(self) -> List[str]:
+        return json.loads(self.MCP_ALLOWED_ORIGINS)
 
 
 settings = Settings()

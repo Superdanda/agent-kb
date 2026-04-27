@@ -15,9 +15,11 @@ from app.models.agent_scheduler import AgentScheduler
 from app.models.agent_scheduler import SchedulerExecutionLog
 from app.models.skill import Skill, SkillStatus
 from app.models.skill_version import SkillVersion, SkillVersionStatus
+from app.models.agent_activity_log import AgentActivityLog
 from app.modules.task_board.models.task import Task, TaskPriority, TaskDifficulty, TaskStatus
 from app.modules.task_board.models.task_material import TaskMaterial, MaterialType
 from app.modules.task_board.models.task_status_log import TaskStatusLog
+from app.modules.task_board.models.task_submission_receipt import TaskSubmissionReceipt
 from app.modules.task_board.models.task_rating import TaskRating, RatingDimension
 from app.modules.task_board.models.leaderboard import Leaderboard, LeaderboardPeriod
 
@@ -42,6 +44,7 @@ __all__ = [
     "SkillStatus",
     "SkillVersion",
     "SkillVersionStatus",
+    "AgentActivityLog",
     "Task",
     "TaskPriority",
     "TaskDifficulty",
@@ -49,6 +52,7 @@ __all__ = [
     "TaskMaterial",
     "MaterialType",
     "TaskStatusLog",
+    "TaskSubmissionReceipt",
     "TaskRating",
     "RatingDimension",
     "Leaderboard",

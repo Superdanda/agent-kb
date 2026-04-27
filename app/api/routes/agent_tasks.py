@@ -97,15 +97,11 @@ def get_pending_tasks(
             except ValueError:
                 pass
 
-    query = db.query(Task).filter(
-        ((Task.assigned_to_agent_id == agent_id) | (Task.assigned_to_agent_id.is_(None))),
-        Task.status.in_(status_values) if status_values else True,
-    ).order_by(
-        Task.priority.desc(),
-        Task.created_at.asc()
-    ).limit(limit)
-
-    tasks = query.all()
+    tasks = TaskService(db).list_available_tasks(
+        agent_id=agent_id,
+        statuses=status_values or None,
+        limit=limit,
+    )
 
     result = []
     for task in tasks:
@@ -149,6 +145,8 @@ def claim_task(
         "status": "claimed",
         "task_id": task_id,
         "new_status": task.status.value,
+        "lease_token": task.lease_token,
+        "lease_expires_at": task.lease_expires_at.isoformat() if task.lease_expires_at else None,
         "started_at": task.started_at.isoformat() if task.started_at else None,
     }
 
@@ -159,6 +157,8 @@ def submit_task_result(
     response: Response,
     result_summary: str = Query(..., description="Summary of the task result"),
     actual_hours: Optional[int] = Query(None, description="Actual hours spent"),
+    lease_token: Optional[str] = Query(None, description="Task lease token returned by claim"),
+    idempotency_key: Optional[str] = Query(None, description="Client-generated idempotency key"),
     agent_id: str = Depends(get_current_agent),
     db: Session = Depends(get_db),
 ):
@@ -169,6 +169,9 @@ def submit_task_result(
         agent_id=agent_id,
         result_summary=result_summary,
         actual_hours=actual_hours,
+        lease_token=lease_token,
+        idempotency_key=idempotency_key,
+        require_lease=False,
     )
     return {
         "status": "submitted",
@@ -182,12 +185,19 @@ def abandon_task(
     task_id: str,
     response: Response,
     reason: Optional[str] = Query(None),
+    lease_token: Optional[str] = Query(None, description="Task lease token returned by claim"),
     agent_id: str = Depends(get_current_agent),
     db: Session = Depends(get_db),
 ):
     """Compatibility route; prefer POST /api/tasks/{task_id}/abandon."""
     _mark_deprecated(response)
-    task = TaskService(db).abandon_task(task_id=task_id, agent_id=agent_id, reason=reason)
+    task = TaskService(db).abandon_task(
+        task_id=task_id,
+        agent_id=agent_id,
+        reason=reason,
+        lease_token=lease_token,
+        require_lease=False,
+    )
     return {
         "status": "abandoned",
         "task_id": task_id,

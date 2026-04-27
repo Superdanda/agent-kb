@@ -1,5 +1,6 @@
 import uuid
-from datetime import datetime, timezone
+import secrets
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Tuple
 
 from sqlalchemy.orm import Session
@@ -7,12 +8,17 @@ from sqlalchemy import desc
 
 from app.modules.task_board.models.task import Task, TaskStatus, TaskPriority, TaskDifficulty
 from app.modules.task_board.models.task_status_log import TaskStatusLog
+from app.modules.task_board.models.task_submission_receipt import TaskSubmissionReceipt
 from app.modules.task_board.services.task_state_machine import (
     TaskAction,
     assert_transition_allowed,
     target_status_for,
 )
 from app.core.exceptions import ResourceNotFoundError, PermissionDeniedError, ValidationError
+from app.models.agent_activity_log import AgentActivityLog
+
+
+DEFAULT_TASK_LEASE_SECONDS = 30 * 60
 
 
 class TaskService:
@@ -168,19 +174,42 @@ class TaskService:
         return task
 
     def claim_task(self, task_id: str, agent_id: str) -> Task:
-        task = self.get_task(task_id)
+        task = (
+            self.db.query(Task)
+            .filter(Task.id == task_id)
+            .with_for_update()
+            .first()
+        )
+        if not task:
+            raise ResourceNotFoundError(f"Task {task_id} not found")
         if task.assigned_to_agent_id and task.assigned_to_agent_id != agent_id:
             raise PermissionDeniedError("Task is assigned to another agent")
 
         assert_transition_allowed(task.status, TaskAction.CLAIM)
+        now = datetime.now(timezone.utc)
         old_status = task.status
         task.assigned_to_agent_id = agent_id
         task.status = target_status_for(TaskAction.CLAIM)
-        task.started_at = datetime.now(timezone.utc)
-        task.updated_at = datetime.now(timezone.utc)
+        task.started_at = now
+        task.lease_token = secrets.token_urlsafe(32)
+        task.lease_renewed_at = now
+        task.lease_expires_at = now + timedelta(seconds=DEFAULT_TASK_LEASE_SECONDS)
+        task.updated_at = now
         self.db.commit()
         self.db.refresh(task)
         self._log_status_change(task.id, agent_id, old_status, task.status, "Task claimed")
+        self._log_activity(
+            agent_id=agent_id,
+            action="task.claim",
+            object_type="task",
+            object_id=task.id,
+            status="SUCCESS",
+            detail={
+                "from_status": old_status.value if old_status else None,
+                "to_status": task.status.value,
+                "lease_expires_at": task.lease_expires_at.isoformat() if task.lease_expires_at else None,
+            },
+        )
         return task
 
     def submit_task_result(
@@ -189,34 +218,112 @@ class TaskService:
         agent_id: str,
         result_summary: str,
         actual_hours: Optional[int] = None,
+        lease_token: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+        require_lease: bool = False,
     ) -> Task:
-        task = self.get_task(task_id)
+        task = (
+            self.db.query(Task)
+            .filter(Task.id == task_id)
+            .with_for_update()
+            .first()
+        )
+        if not task:
+            raise ResourceNotFoundError(f"Task {task_id} not found")
         self._ensure_assignee(task, agent_id)
         if not result_summary or not result_summary.strip():
             raise ValidationError("result_summary is required")
+
+        if idempotency_key:
+            existing_receipt = (
+                self.db.query(TaskSubmissionReceipt)
+                .filter(
+                    TaskSubmissionReceipt.task_id == task_id,
+                    TaskSubmissionReceipt.agent_id == agent_id,
+                    TaskSubmissionReceipt.idempotency_key == idempotency_key,
+                )
+                .first()
+            )
+            if existing_receipt:
+                self._log_activity(
+                    agent_id=agent_id,
+                    action="task.submit",
+                    object_type="task",
+                    object_id=task.id,
+                    status="IDEMPOTENT_REPLAY",
+                    detail={"idempotency_key": idempotency_key},
+                )
+                return task
+
+        if require_lease:
+            if not lease_token:
+                raise ValidationError("lease_token is required")
+            if not idempotency_key:
+                raise ValidationError("idempotency_key is required")
+            self._ensure_active_lease(task, lease_token)
 
         assert_transition_allowed(task.status, TaskAction.SUBMIT)
         old_status = task.status
         task.status = target_status_for(TaskAction.SUBMIT)
         task.actual_hours = actual_hours
         task.updated_at = datetime.now(timezone.utc)
+        task.lease_token = None
+        task.lease_expires_at = None
+        task.lease_renewed_at = None
         metadata = task.metadata_json or {}
         metadata["result_summary"] = result_summary.strip()
         metadata["submitted_at"] = datetime.now(timezone.utc).isoformat()
         task.metadata_json = metadata
+        if idempotency_key:
+            self.db.add(
+                TaskSubmissionReceipt(
+                    id=str(uuid.uuid4()),
+                    task_id=task_id,
+                    agent_id=agent_id,
+                    idempotency_key=idempotency_key,
+                    result_summary=result_summary.strip(),
+                    status=target_status_for(TaskAction.SUBMIT).value,
+                )
+            )
         self.db.commit()
         self.db.refresh(task)
         self._log_status_change(task.id, agent_id, old_status, task.status, "Task submitted")
+        self._log_activity(
+            agent_id=agent_id,
+            action="task.submit",
+            object_type="task",
+            object_id=task.id,
+            status="SUCCESS",
+            detail={
+                "from_status": old_status.value if old_status else None,
+                "to_status": task.status.value,
+                "idempotency_key": idempotency_key,
+            },
+        )
         return task
 
-    def abandon_task(self, task_id: str, agent_id: str, reason: Optional[str] = None) -> Task:
+    def abandon_task(
+        self,
+        task_id: str,
+        agent_id: str,
+        reason: Optional[str] = None,
+        lease_token: Optional[str] = None,
+        require_lease: bool = False,
+    ) -> Task:
         task = self.get_task(task_id)
         self._ensure_assignee(task, agent_id)
+        if require_lease:
+            if not lease_token:
+                raise ValidationError("lease_token is required")
+            self._ensure_active_lease(task, lease_token)
         assert_transition_allowed(task.status, TaskAction.ABANDON)
 
         old_status = task.status
         task.status = target_status_for(TaskAction.ABANDON)
         task.assigned_to_agent_id = None
+        task.lease_token = None
+        task.lease_expires_at = None
+        task.lease_renewed_at = None
         task.updated_at = datetime.now(timezone.utc)
         metadata = task.metadata_json or {}
         if reason:
@@ -226,6 +333,14 @@ class TaskService:
         self.db.commit()
         self.db.refresh(task)
         self._log_status_change(task.id, agent_id, old_status, task.status, reason or "Task abandoned")
+        self._log_activity(
+            agent_id=agent_id,
+            action="task.abandon",
+            object_type="task",
+            object_id=task.id,
+            status="SUCCESS",
+            detail={"reason": reason, "from_status": old_status.value if old_status else None},
+        )
         return task
 
     def confirm_task(
@@ -325,6 +440,67 @@ class TaskService:
         tasks = query.order_by(desc(Task.created_at)).offset(offset).limit(size).all()
         return tasks, total
 
+    def list_available_tasks(
+        self,
+        agent_id: str,
+        statuses: Optional[List[TaskStatus]] = None,
+        limit: int = 10,
+    ) -> List[Task]:
+        status_values = statuses or [TaskStatus.PENDING, TaskStatus.UNCLAIMED]
+        return (
+            self.db.query(Task)
+            .filter(
+                ((Task.assigned_to_agent_id == agent_id) | (Task.assigned_to_agent_id.is_(None))),
+                Task.status.in_(status_values),
+            )
+            .order_by(Task.priority.desc(), Task.created_at.asc())
+            .limit(limit)
+            .all()
+        )
+
+    def recover_expired_leases(self, limit: int = 100) -> int:
+        now = datetime.now(timezone.utc)
+        tasks = (
+            self.db.query(Task)
+            .filter(
+                Task.status == TaskStatus.IN_PROGRESS,
+                Task.lease_expires_at.isnot(None),
+                Task.lease_expires_at < now,
+            )
+            .order_by(Task.lease_expires_at.asc())
+            .limit(limit)
+            .all()
+        )
+        recovered = 0
+        for task in tasks:
+            old_status = task.status
+            old_agent_id = task.assigned_to_agent_id
+            task.status = TaskStatus.UNCLAIMED
+            task.assigned_to_agent_id = None
+            task.lease_token = None
+            task.lease_expires_at = None
+            task.lease_renewed_at = None
+            task.updated_at = now
+            recovered += 1
+            self._log_status_change(
+                task.id,
+                old_agent_id,
+                old_status,
+                TaskStatus.UNCLAIMED,
+                "Task lease expired and was recovered",
+            )
+            self._log_activity(
+                agent_id=old_agent_id,
+                action="task.lease_recover",
+                object_type="task",
+                object_id=task.id,
+                status="SUCCESS",
+                detail={"expired_at": now.isoformat()},
+            )
+        if recovered:
+            self.db.commit()
+        return recovered
+
     def get_my_tasks(
         self,
         agent_id: str,
@@ -351,6 +527,16 @@ class TaskService:
     def _ensure_assignee(self, task: Task, agent_id: str) -> None:
         if task.assigned_to_agent_id != agent_id:
             raise PermissionDeniedError("Only the assigned agent can operate this task")
+
+    def _ensure_active_lease(self, task: Task, lease_token: str) -> None:
+        now = datetime.now(timezone.utc)
+        expires_at = task.lease_expires_at
+        if expires_at and expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if task.lease_token != lease_token:
+            raise PermissionDeniedError("Task lease token does not match")
+        if not expires_at or expires_at < now:
+            raise PermissionDeniedError("Task lease has expired")
 
     def _ensure_reviewer(
         self,
@@ -391,3 +577,26 @@ class TaskService:
         """Check if uuid_str exists in agents table"""
         from app.models.agent import Agent
         return self.db.query(Agent).filter(Agent.id == uuid_str).first() is not None
+
+    def _log_activity(
+        self,
+        agent_id: Optional[str],
+        action: str,
+        object_type: str,
+        object_id: Optional[str],
+        status: str,
+        detail: Optional[dict] = None,
+    ) -> AgentActivityLog:
+        log = AgentActivityLog(
+            id=str(uuid.uuid4()),
+            agent_id=agent_id,
+            action=action,
+            object_type=object_type,
+            object_id=object_id,
+            status=status,
+            detail_json=detail or {},
+        )
+        self.db.add(log)
+        self.db.commit()
+        self.db.refresh(log)
+        return log
