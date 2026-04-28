@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "dev"
     MCP_ALLOWED_ORIGINS: str = '["http://localhost", "http://127.0.0.1"]'
 
+    # Agent callback webhook
+    HERMES_GATEWAY_WEBHOOK_TIMEOUT_SECONDS: float = 5.0
+
     @property
     def allowed_extensions_list(self) -> List[str]:
         return json.loads(self.ALLOWED_EXTENSIONS)

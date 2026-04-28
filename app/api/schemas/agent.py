@@ -7,7 +7,9 @@ from pydantic import BaseModel, Field
 class AgentCreate(BaseModel):
     agent_code: str = Field(..., max_length=64)
     name: str = Field(..., max_length=128)
+    agent_type: Optional[str] = Field(None, max_length=64)
     device_name: Optional[str] = Field(None, max_length=128)
+    callback_url: Optional[str] = Field(None, max_length=1024)
     environment_tags: Optional[list[str]] = None
 
 
@@ -15,7 +17,9 @@ class AgentResponse(BaseModel):
     id: str
     agent_code: str
     name: str
+    agent_type: Optional[str]
     device_name: Optional[str]
+    callback_url: Optional[str]
     environment_tags: Optional[list[str]]
     status: str
     created_at: datetime

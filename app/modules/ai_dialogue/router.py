@@ -120,6 +120,54 @@ def _build_create_result_text(fields: dict, task_id: str, material_count: int) -
     return "\n".join(lines)
 
 
+async def _collect_uploaded_files(files: List[UploadFile]) -> tuple[list[dict], list[dict]]:
+    """Read upload contents before the SSE response lifecycle can close file handles."""
+    file_context = []
+    uploaded_files = []
+    for f in files or []:
+        if not f.filename:
+            continue
+        contents = await f.read()
+        file_context.append({
+            "filename": f.filename,
+            "content_type": f.content_type or "unknown",
+            "size": len(contents),
+        })
+        uploaded_files.append({
+            "filename": f.filename,
+            "content_type": f.content_type or "application/octet-stream",
+            "contents": contents,
+        })
+    return file_context, uploaded_files
+
+
+def _attach_uploaded_files_to_task(db: Session, task_id: str, uploaded_files: list[dict]) -> tuple[int, list[dict]]:
+    material_count = 0
+    material_errors = []
+    if not uploaded_files:
+        return material_count, material_errors
+
+    material_svc = MaterialService(db)
+    for uploaded in uploaded_files:
+        try:
+            material_svc.upload_bytes_material(
+                task_id=task_id,
+                title=uploaded["filename"] or "任务材料",
+                filename=uploaded["filename"] or "task-material",
+                contents=uploaded["contents"],
+                content_type=uploaded["content_type"],
+                material_type=MaterialType.FILE,
+                is_result=False,
+            )
+            material_count += 1
+        except Exception as exc:
+            material_errors.append({
+                "filename": uploaded.get("filename") or "任务材料",
+                "error": str(exc),
+            })
+    return material_count, material_errors
+
+
 def _build_edit_result_text(fields: dict, changes: list, task_title: str) -> str:
     """Build the final result display text for task editing."""
     lines = [
@@ -159,17 +207,9 @@ async def ai_create_task(
         from app.core.exceptions import AuthenticationError
         raise AuthenticationError("Authentication required")
 
-    # Process uploaded files - save them temporarily and collect context
-    file_context = []
-    saved_files = []
-    if files:
-        for f in files:
-            if f.filename:
-                file_context.append({
-                    "filename": f.filename,
-                    "content_type": f.content_type or "unknown",
-                })
-                saved_files.append(f)
+    # Read uploads before returning StreamingResponse; UploadFile handles may be
+    # closed by the time the SSE generator receives the AI tool call.
+    file_context, uploaded_files = await _collect_uploaded_files(files)
 
     # Get available agents for AI context
     available_agents = _get_available_agents(db)
@@ -253,23 +293,8 @@ async def ai_create_task(
                                 metadata={"ai_created": True, "ai_source": "ai_dialogue"},
                             )
 
-                            # Process saved files - associate with task
-                            material_count = 0
-                            if saved_files:
-                                material_svc = MaterialService(db)
-                                for f in saved_files:
-                                    try:
-                                        await f.seek(0)
-                                        material_svc.upload_file_material(
-                                            task_id=task.id,
-                                            title=f.filename or "任务材料",
-                                            material_type=MaterialType.FILE,
-                                            file=f,
-                                            is_result=False,
-                                        )
-                                        material_count += 1
-                                    except Exception:
-                                        pass
+                            # Process uploaded files - associate with task
+                            material_count, material_errors = _attach_uploaded_files_to_task(db, task.id, uploaded_files)
 
                             # Build result text
                             result_text = _build_create_result_text(fields, task.id, material_count)
@@ -280,6 +305,7 @@ async def ai_create_task(
                                 "title": task.title,
                                 "fields": fields,
                                 "material_count": material_count,
+                                "material_errors": material_errors,
                             }
                             yield f"event: task_created\ndata: {json.dumps(result, ensure_ascii=False)}\n\n"
                             yield f"event: text\ndata: {json.dumps(result_text, ensure_ascii=False)}\n\n"

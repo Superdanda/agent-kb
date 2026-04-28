@@ -118,6 +118,7 @@ async def admin_agents(
         query = query.filter(
             (Agent.name.ilike(search_term)) |
             (Agent.agent_code.ilike(search_term)) |
+            (Agent.agent_type.ilike(search_term)) |
             (Agent.device_name.ilike(search_term))
         )
 

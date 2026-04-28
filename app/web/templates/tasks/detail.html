@@ -13,10 +13,50 @@
         </div>
         <div class="top-actions">
             {% if is_admin %}
+            <form method="post" action="/tasks/{{ task.id }}/notify-agent" class="notify-agent-form">
+                <button type="submit" class="btn btn-hermes-info command-notify"
+                        {% if not task.assigned_to or not task.assigned_to.callback_url %}disabled title="需要先为负责人配置回调地址"{% endif %}>
+                    通知 Agent
+                </button>
+            </form>
             <a href="/tasks/{{ task.id }}/ai-edit" class="btn btn-hermes-primary command-primary">AI 编辑任务</a>
             <button type="button" class="btn btn-hermes-secondary" data-editor-tab="manual">手动编辑</button>
             {% endif %}
             <a href="/tasks" class="btn btn-hermes-secondary">返回</a>
+        </div>
+    </section>
+
+    {% if notify_status %}
+    <section class="notify-result card-hermes {% if notify_status == 'success' %}notify-ok{% else %}notify-failed{% endif %}">
+        {% if notify_status == 'success' %}
+        <strong>已通知 Agent</strong>
+        <span>任务回调已发送到负责人配置的回调地址。</span>
+        {% elif notify_error == 'unassigned' %}
+        <strong>通知失败</strong>
+        <span>当前任务未指派负责人。</span>
+        {% elif notify_error == 'missing_callback_url' %}
+        <strong>通知失败</strong>
+        <span>负责人尚未配置回调地址。</span>
+        {% elif notify_error == 'agent_has_no_credentials' %}
+        <strong>通知失败</strong>
+        <span>负责人没有 Active 凭证，请在 Agent 管理中创建或重置凭证。</span>
+        {% else %}
+        <strong>通知失败</strong>
+        <span>{{ notify_error or '回调投递失败，请检查 Agent 回调地址和 KB Webhook 签名配置。' }}</span>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="agent-stream card-hermes" data-agent-stream data-task-id="{{ task.id }}">
+        <div class="panel-head compact">
+            <div>
+                <p class="eyebrow">Agent Runtime</p>
+                <h3>执行流</h3>
+            </div>
+            <span class="stream-state" data-stream-state>未连接</span>
+        </div>
+        <div class="stream-log" data-stream-log>
+            <div class="stream-line muted">等待 Agent 响应流。</div>
         </div>
     </section>
 
@@ -130,6 +170,8 @@
                     <div><span>优先级</span><strong>{{ priority_label }}</strong></div>
                     <div><span>难度</span><strong>{{ difficulty_label }}</strong></div>
                     <div><span>负责人</span><strong>{{ task.assigned_to.name if task.assigned_to else '未指派' }}</strong></div>
+                    <div><span>Agent 类型</span><strong>{{ task.assigned_to.agent_type if task.assigned_to and task.assigned_to.agent_type else '未设置' }}</strong></div>
+                    <div><span>回调地址</span><strong>{{ '已配置' if task.assigned_to and task.assigned_to.callback_url else '未配置' }}</strong></div>
                     <div><span>预计工时</span><strong>{{ task.estimated_hours if task.estimated_hours is not none else '未设置' }}</strong></div>
                     <div><span>截止时间</span><strong>{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '未设置' }}</strong></div>
                     <div><span>积分</span><strong>{{ task.points }}</strong></div>
@@ -304,6 +346,7 @@
     .detail-topbar,
     .primary-pane,
     .side-card,
+    .agent-stream,
     .result-approval {
         border: 1px solid rgba(118, 155, 215, 0.18);
         background: linear-gradient(180deg, rgba(14, 24, 40, 0.96), rgba(8, 14, 24, 0.98));
@@ -334,6 +377,7 @@
     }
 
     .top-actions,
+    .notify-agent-form,
     .approval-actions,
     .reject-actions {
         display: flex;
@@ -354,6 +398,99 @@
         background: linear-gradient(135deg, var(--accent-cyan), #0099cc);
         border: none;
         color: #001018;
+    }
+
+    .command-notify:disabled {
+        opacity: 0.48;
+        cursor: not-allowed;
+    }
+
+    .notify-result {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+        padding: 0.85rem 1rem;
+        border: 1px solid rgba(193, 212, 244, 0.12);
+    }
+
+    .notify-result strong {
+        white-space: nowrap;
+    }
+
+    .notify-result span {
+        color: rgba(224, 236, 255, 0.78);
+        overflow-wrap: anywhere;
+    }
+
+    .notify-ok {
+        border-color: rgba(143, 244, 192, 0.28);
+        background: rgba(36, 83, 69, 0.32);
+    }
+
+    .notify-failed {
+        border-color: rgba(255, 137, 137, 0.28);
+        background: rgba(87, 42, 46, 0.32);
+    }
+
+    .agent-stream {
+        padding: 1rem 1.15rem;
+    }
+
+    .stream-state {
+        flex: 0 0 auto;
+        padding: 0.25rem 0.62rem;
+        border-radius: 999px;
+        background: rgba(239, 246, 255, 0.06);
+        border: 1px solid rgba(193, 212, 244, 0.12);
+        color: rgba(224, 236, 255, 0.72);
+        font-size: 0.78rem;
+    }
+
+    .stream-state.active {
+        color: #9edfff;
+        border-color: rgba(103, 198, 255, 0.26);
+        background: rgba(13, 92, 132, 0.18);
+    }
+
+    .stream-state.done {
+        color: #8ff4c0;
+        border-color: rgba(87, 229, 165, 0.26);
+        background: rgba(27, 109, 71, 0.18);
+    }
+
+    .stream-state.failed {
+        color: #ffb6b3;
+        border-color: rgba(255, 122, 130, 0.28);
+        background: rgba(121, 26, 42, 0.18);
+    }
+
+    .stream-log {
+        display: grid;
+        gap: 0.45rem;
+        max-height: 16rem;
+        overflow: auto;
+        padding: 0.75rem;
+        border-radius: 10px;
+        background: rgba(4, 8, 15, 0.42);
+        border: 1px solid rgba(193, 212, 244, 0.1);
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+    }
+
+    .stream-line {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        color: rgba(224, 236, 255, 0.84);
+        line-height: 1.55;
+    }
+
+    .stream-line.muted {
+        color: rgba(176, 194, 220, 0.66);
+    }
+
+    .stream-line.error {
+        color: #ffb6b3;
     }
 
     .work-layout {
@@ -829,5 +966,70 @@
             embeddedEditor?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     });
+
+    const streamPanel = document.querySelector('[data-agent-stream]');
+    const streamLog = document.querySelector('[data-stream-log]');
+    const streamState = document.querySelector('[data-stream-state]');
+
+    function setStreamState(text, className) {
+        if (!streamState) return;
+        streamState.textContent = text;
+        streamState.className = `stream-state ${className || ''}`.trim();
+    }
+
+    function appendStreamLine(text, className) {
+        if (!streamLog || !text) return;
+        const placeholder = streamLog.querySelector('.stream-line.muted');
+        if (placeholder && placeholder.textContent === '等待 Agent 响应流。') {
+            placeholder.remove();
+        }
+        const line = document.createElement('div');
+        line.className = `stream-line ${className || ''}`.trim();
+        line.textContent = text;
+        streamLog.appendChild(line);
+        streamLog.scrollTop = streamLog.scrollHeight;
+    }
+
+    if (streamPanel && streamLog && streamState && 'WebSocket' in window) {
+        const taskId = streamPanel.dataset.taskId;
+        const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const socket = new WebSocket(`${scheme}://${window.location.host}/api/webhooks/kb/tasks/${encodeURIComponent(taskId)}/stream`);
+
+        socket.addEventListener('open', () => setStreamState('已连接', 'active'));
+        socket.addEventListener('message', (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'connected') {
+                return;
+            }
+            if (data.type === 'started') {
+                setStreamState('执行中', 'active');
+                appendStreamLine(data.message || 'Agent 已开始处理。');
+                return;
+            }
+            if (data.type === 'accepted') {
+                setStreamState('等待运行流', 'active');
+                appendStreamLine(data.message || 'Agent 已接受任务通知，等待运行流回传。');
+                return;
+            }
+            if (data.type === 'chunk') {
+                appendStreamLine(data.content);
+                return;
+            }
+            if (data.type === 'completed') {
+                setStreamState('已完成', 'done');
+                appendStreamLine('Agent 回调执行完成。');
+                return;
+            }
+            if (data.type === 'failed' || data.type === 'error') {
+                setStreamState('失败', 'failed');
+                appendStreamLine(data.message || 'Agent 回调执行失败。', 'error');
+            }
+        });
+        socket.addEventListener('close', () => {
+            if (!streamState.classList.contains('done') && !streamState.classList.contains('failed')) {
+                setStreamState('已断开');
+            }
+        });
+    }
 </script>
 {% endblock %}

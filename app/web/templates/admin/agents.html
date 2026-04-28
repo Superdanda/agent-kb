@@ -64,7 +64,9 @@
             <tr>
                 <th>智能体代码</th>
                 <th>名称</th>
+                <th>类型</th>
                 <th>设备名称</th>
+                <th>回调</th>
                 <th>能力</th>
                 <th>状态</th>
                 <th>注册时间</th>
@@ -76,7 +78,15 @@
             <tr class="agent-row" data-agent-id="{{ agent.id }}">
                 <td><code class="agent-code">{{ agent.agent_code }}</code></td>
                 <td class="agent-name">{{ agent.name }}</td>
+                <td class="agent-type">{{ agent.agent_type or '—' }}</td>
                 <td class="agent-device">{{ agent.device_name or '—' }}</td>
+                <td>
+                    {% if agent.callback_url %}
+                    <span class="badge-hermes callback-ready">已配置</span>
+                    {% else %}
+                    <span class="badge-hermes callback-missing">未配置</span>
+                    {% endif %}
+                </td>
                 <td class="agent-capabilities">
                     <span class="capability-preview" title="{{ agent.capabilities or '未填写' }}">
                         {{ (agent.capabilities[:40] + '...') if agent.capabilities and agent.capabilities|length > 40 else (agent.capabilities or '—') }}
@@ -99,7 +109,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="7" class="text-center text-hermes-muted">未找到匹配的智能体</td>
+                <td colspan="9" class="text-center text-hermes-muted">未找到匹配的智能体</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -168,6 +178,19 @@
                     </div>
                 </div>
 
+                <div class="form-row">
+                    <div class="form-group-hermes">
+                        <label class="form-label-hermes" for="editAgentType">Agent 类型</label>
+                        <input type="text" class="form-control-hermes" id="editAgentType" name="agent_type"
+                               placeholder="hermes / openclaw">
+                    </div>
+                    <div class="form-group-hermes">
+                        <label class="form-label-hermes" for="editCallbackUrl">回调地址</label>
+                        <input type="url" class="form-control-hermes" id="editCallbackUrl" name="callback_url"
+                               placeholder="http://host:8644/webhooks/kb-task">
+                    </div>
+                </div>
+
                 <div class="form-group-hermes">
                     <label class="form-label-hermes" for="editEnvTags">环境标签</label>
                     <input type="text" class="form-control-hermes" id="editEnvTags" name="environment_tags"
@@ -191,6 +214,38 @@
                     <textarea class="form-control-hermes" id="editWorkPrefs" name="work_preferences" rows="3"
                               placeholder='{"preferred_tasks": [], "availability": "full_time"}'></textarea>
                     <small class="form-hint">请输入有效的 JSON 格式</small>
+                </div>
+
+                <div class="credential-preview">
+                    <div class="credential-preview-head">
+                        <span>Active 凭证</span>
+                        <div class="credential-actions">
+                            <button type="button" class="btn-hermes-secondary btn-sm" onclick="loadAgentCredentials()">刷新</button>
+                            <button type="button" class="btn-hermes-warning btn-sm" onclick="resetAgentCredentials()">重置</button>
+                            <button type="button" class="btn-hermes-danger btn-sm" onclick="revokeAgentCredentials()">终止</button>
+                        </div>
+                    </div>
+                    <div id="editCredentialList" class="credential-list">
+                        <span class="text-hermes-muted">打开编辑后自动加载。</span>
+                    </div>
+                    <div id="generatedCredentialPanel" class="generated-credential" hidden>
+                        <div class="generated-head">
+                            <strong>新凭证已生成</strong>
+                            <span>仅当前弹窗会临时保留，可一键复制。</span>
+                        </div>
+                        <div class="generated-grid">
+                            <div>
+                                <span>Access Key</span>
+                                <code id="generatedAccessMasked">********</code>
+                                <button type="button" class="btn-hermes-secondary btn-sm" onclick="copyGeneratedCredential('access_key')">复制</button>
+                            </div>
+                            <div>
+                                <span>Secret Key</span>
+                                <code id="generatedSecretMasked">********</code>
+                                <button type="button" class="btn-hermes-secondary btn-sm" onclick="copyGeneratedCredential('secret_key')">复制</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="form-actions">
@@ -232,6 +287,7 @@
 .agent-row:hover { background: rgba(255,255,255,0.02); }
 .agent-code { font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-cyan); background: var(--bg-elevated); padding: 0.2em 0.5em; border-radius: 4px; }
 .agent-name { font-weight: 500; color: var(--text-primary); }
+.agent-type { color: var(--accent-cyan); font-family: var(--font-mono); font-size: 0.82rem; }
 .agent-device { color: var(--text-secondary); font-size: 0.9rem; }
 .agent-capabilities { max-width: 200px; }
 .capability-preview { color: var(--text-secondary); font-size: 0.85rem; }
@@ -241,6 +297,8 @@
 .status-active { background: rgba(0,255,136,0.1) !important; color: var(--accent-green) !important; border: 1px solid rgba(0,255,136,0.2) !important; }
 .status-inactive { background: rgba(136,136,160,0.1) !important; color: var(--text-secondary) !important; border: 1px solid rgba(136,136,160,0.2) !important; }
 .status-pending { background: rgba(255,184,0,0.1) !important; color: var(--accent-amber) !important; border: 1px solid rgba(255,184,0,0.2) !important; }
+.callback-ready { background: rgba(0,212,255,0.1) !important; color: var(--accent-cyan) !important; border: 1px solid rgba(0,212,255,0.24) !important; }
+.callback-missing { background: rgba(136,136,160,0.1) !important; color: var(--text-muted) !important; border: 1px solid rgba(136,136,160,0.2) !important; }
 
 .btn-sm { padding: 0.35rem 0.8rem; font-size: 0.8rem; margin-right: 0.5rem; }
 
@@ -268,6 +326,23 @@
 .form-control-hermes textarea { resize: vertical; min-height: 80px; }
 .form-hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; display: block; }
 .form-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-subtle); }
+.credential-preview { margin-top: 1rem; padding: 1rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-elevated); }
+.credential-preview-head { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+.credential-preview-head span { font-family: var(--font-mono); color: var(--text-muted); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.credential-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; justify-content: flex-end; }
+.credential-list { display: grid; gap: 0.5rem; }
+.credential-line { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; padding: 0.65rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: rgba(0,0,0,0.16); }
+.credential-line code { color: var(--accent-cyan); overflow-wrap: anywhere; }
+.credential-line span { display: block; margin-bottom: 0.25rem; color: var(--text-muted); font-size: 0.72rem; }
+.credential-value-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; }
+.generated-credential { margin-top: 0.8rem; padding: 0.85rem; border: 1px solid rgba(0,212,255,0.24); border-radius: var(--radius-md); background: rgba(0,212,255,0.06); }
+.generated-head { display: grid; gap: 0.2rem; margin-bottom: 0.7rem; }
+.generated-head strong { color: var(--accent-cyan); }
+.generated-head span { color: var(--text-muted); font-size: 0.78rem; }
+.generated-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.generated-grid > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; padding: 0.65rem; border-radius: var(--radius-sm); background: rgba(0,0,0,0.16); }
+.generated-grid span { grid-column: 1 / -1; color: var(--text-muted); font-size: 0.72rem; }
+.generated-grid code { color: var(--accent-cyan); overflow-wrap: anywhere; }
 
 .text-center { text-align: center; }
 </style>
@@ -275,6 +350,7 @@
 <script>
 // Cache for agent data
 let agentCache = {};
+let generatedCredential = null;
 
 async function openEditModal(agentId) {
     const modal = document.getElementById('editModal');
@@ -296,11 +372,16 @@ async function openEditModal(agentId) {
         document.getElementById('editAgentId').value = agent.id;
         document.getElementById('editAgentCode').value = agent.agent_code;
         document.getElementById('editName').value = agent.name || '';
+        document.getElementById('editAgentType').value = agent.agent_type || '';
         document.getElementById('editDeviceName').value = agent.device_name || '';
+        document.getElementById('editCallbackUrl').value = agent.callback_url || '';
         document.getElementById('editStatus').value = agent.status;
         document.getElementById('editEnvTags').value = (agent.environment_tags || []).join(', ');
         document.getElementById('editCapabilities').value = agent.capabilities || '';
         document.getElementById('editSelfIntro').value = agent.self_introduction || '';
+        document.getElementById('editCredentialList').innerHTML = '<span class="text-hermes-muted">加载中...</span>';
+        generatedCredential = null;
+        clearGeneratedCredentialPanel();
 
         // Format work_preferences for display
         let workPrefsStr = '';
@@ -312,6 +393,7 @@ async function openEditModal(agentId) {
             }
         }
         document.getElementById('editWorkPrefs').value = workPrefsStr;
+        await loadAgentCredentials();
 
     } catch (e) {
         showNotification('加载失败: ' + e.message, 'error');
@@ -322,6 +404,152 @@ async function openEditModal(agentId) {
 function closeEditModal() {
     document.getElementById('editModal').style.display = 'none';
     document.getElementById('agentEditForm').reset();
+    generatedCredential = null;
+    clearGeneratedCredentialPanel();
+}
+
+async function loadAgentCredentials() {
+    const agentId = document.getElementById('editAgentId').value;
+    const target = document.getElementById('editCredentialList');
+    if (!agentId || !target) return;
+    target.innerHTML = '<span class="text-hermes-muted">加载中...</span>';
+    try {
+        const resp = await fetch(`/api/admin/agents/${agentId}/credentials`);
+        if (resp.status === 404) {
+            target.innerHTML = '<span class="text-hermes-muted">暂无 Active 凭证。</span>';
+            return;
+        }
+        if (!resp.ok) throw new Error('Failed to fetch credentials');
+        const data = await resp.json();
+        const credentials = data.credentials || [];
+        if (!credentials.length) {
+            target.innerHTML = '<span class="text-hermes-muted">暂无 Active 凭证。</span>';
+            return;
+        }
+        target.innerHTML = credentials.map(item => `
+            <div class="credential-line">
+                <div>
+                    <span>Access Key</span>
+                    <div class="credential-value-row">
+                        <code>${escapeHtml(item.access_key || '')}</code>
+                        <button type="button" class="btn-hermes-secondary btn-sm" onclick="copyText('${escapeJs(item.access_key || '')}', 'Access Key 已复制')">复制</button>
+                    </div>
+                </div>
+                <div>
+                    <span>Secret Key</span>
+                    <div class="credential-value-row">
+                        <code>${escapeHtml(item.secret_key || '')}</code>
+                        <button type="button" class="btn-hermes-secondary btn-sm" onclick="copyText('${escapeJs(item.secret_key || '')}', 'Secret Key 已复制')">复制</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        target.innerHTML = `<span class="text-hermes-muted">凭证加载失败：${escapeHtml(e.message)}</span>`;
+    }
+}
+
+async function resetAgentCredentials() {
+    const agentId = document.getElementById('editAgentId').value;
+    if (!agentId) return;
+    if (!confirm('确认重置凭证？旧的 Active 凭证会立即失效，并生成一组新凭证。')) return;
+    try {
+        const resp = await fetch(`/api/admin/agents/${agentId}/reset-credentials`, { method: 'POST' });
+        if (!resp.ok) {
+            const err = await resp.json();
+            throw new Error(err.detail || 'Reset failed');
+        }
+        const data = await resp.json();
+        generatedCredential = {
+            access_key: data.access_key || '',
+            secret_key: data.secret_key || ''
+        };
+        showGeneratedCredentialPanel(data);
+        showNotification('凭证已重置，可在弹窗内复制新凭证', 'success');
+        await loadAgentCredentials();
+    } catch (e) {
+        showNotification('重置失败: ' + e.message, 'error');
+    }
+}
+
+function showGeneratedCredentialPanel(data) {
+    const panel = document.getElementById('generatedCredentialPanel');
+    if (!panel) return;
+    document.getElementById('generatedAccessMasked').textContent = data.access_key_masked || '********';
+    document.getElementById('generatedSecretMasked').textContent = data.secret_key_masked || '********';
+    panel.hidden = false;
+}
+
+function clearGeneratedCredentialPanel() {
+    const panel = document.getElementById('generatedCredentialPanel');
+    if (!panel) return;
+    document.getElementById('generatedAccessMasked').textContent = '********';
+    document.getElementById('generatedSecretMasked').textContent = '********';
+    panel.hidden = true;
+}
+
+async function copyGeneratedCredential(key) {
+    if (!generatedCredential || !generatedCredential[key]) {
+        showNotification('没有可复制的新凭证，请先重置。', 'error');
+        return;
+    }
+    await copyText(generatedCredential[key], key === 'access_key' ? 'Access Key 已复制' : 'Secret Key 已复制');
+}
+
+async function copyText(value, message) {
+    if (!value) {
+        showNotification('没有可复制内容', 'error');
+        return;
+    }
+    try {
+        await navigator.clipboard.writeText(value);
+        showNotification(message || '已复制', 'success');
+    } catch (e) {
+        const textarea = document.createElement('textarea');
+        textarea.value = value;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        textarea.remove();
+        showNotification(message || '已复制', 'success');
+    }
+}
+
+async function revokeAgentCredentials() {
+    const agentId = document.getElementById('editAgentId').value;
+    if (!agentId) return;
+    if (!confirm('确认终止此 Agent 的所有 Active 凭证？终止后该 Agent 将无法通过签名请求或接收签名回调。')) return;
+    try {
+        const resp = await fetch(`/api/admin/agents/${agentId}/revoke-credentials`, { method: 'POST' });
+        if (!resp.ok) {
+            const err = await resp.json();
+            throw new Error(err.detail || 'Revoke failed');
+        }
+        const data = await resp.json();
+        showNotification(`已终止 ${data.revoked_count || 0} 组 Active 凭证`, 'success');
+        await loadAgentCredentials();
+    } catch (e) {
+        showNotification('终止失败: ' + e.message, 'error');
+    }
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function escapeJs(value) {
+    return String(value)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r');
 }
 
 // Close modal on outside click
@@ -349,7 +577,9 @@ document.getElementById('agentEditForm').addEventListener('submit', async functi
 
     const data = {
         name: document.getElementById('editName').value,
+        agent_type: document.getElementById('editAgentType').value || null,
         device_name: document.getElementById('editDeviceName').value || null,
+        callback_url: document.getElementById('editCallbackUrl').value || null,
         status: document.getElementById('editStatus').value,
         environment_tags: document.getElementById('editEnvTags').value
             ? document.getElementById('editEnvTags').value.split(',').map(t => t.trim()).filter(t => t)

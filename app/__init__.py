@@ -44,7 +44,7 @@ def create_app() -> FastAPI:
     app.mount("/data/file", StaticFiles(directory=str(storage_dir), check_dir=False), name="data_file")
 
 # Register API routers
-    from app.api.routes import agents, posts, assets, learning, admin_auth, domains, suggestions, agent_scheduler, skills
+    from app.api.routes import agents, posts, assets, learning, admin_auth, domains, suggestions, agent_scheduler, skills, webhooks
     from app.api.routes.admin_users import router as admin_users_router
     from app.api.routes.agent_registrations import router as agent_registrations_router
     from app.api.routes.admin_agent_registrations import router as admin_agent_registrations_router
@@ -62,6 +62,7 @@ def create_app() -> FastAPI:
     app.include_router(suggestions.router, prefix="/api")
     app.include_router(skills.router, prefix="/api")
     app.include_router(skills.admin_router, prefix="/api")
+    app.include_router(webhooks.router, prefix="/api")
     app.include_router(admin_users_router, prefix="/api")
     app.include_router(agent_scheduler_router, prefix="/api")
     app.include_router(admin_agents_router, prefix="/api")

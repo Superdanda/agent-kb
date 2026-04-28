@@ -6,7 +6,7 @@ import mimetypes
 import os
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -26,6 +26,7 @@ from app.models.agent import Agent, AgentStatus
 from app.models.agent_registration import RegistrationStatus
 from app.modules.task_board.models.task import Task, TaskStatus
 from app.modules.task_board.models.task_material import MaterialType, TaskMaterial
+from app.modules.task_board.models.task_submission_receipt import TaskSubmissionReceipt
 from app.modules.task_board.schemas.task import TaskResponse
 from app.modules.task_board.schemas.task_material import TaskMaterialResponse
 from app.modules.task_board.services.material_service import MaterialService
@@ -120,10 +121,10 @@ def _tool_definitions() -> list[dict[str, Any]]:
         _tool("agent_kb.heartbeat", "Update current Agent heartbeat and online status.", {}),
         _tool("agent_kb.agent_me", "Get current Agent identity and status.", {}),
         _tool("agent_kb.task_list_available", "List unassigned tasks visible to all Agents plus this Agent's assigned active tasks.", {"statuses": string_array, "limit": integer}),
-        _tool("agent_kb.task_get", "Get a task by id.", {"task_id": string}, ["task_id"]),
+        _tool("agent_kb.task_get", "Get a task by id with materials, download URLs, status history, submission result, and review feedback.", {"task_id": string}, ["task_id"]),
         _tool("agent_kb.task_materials", "List task material metadata visible to the current Agent. Does not return file contents.", {"task_id": string, "include_results": boolean}, ["task_id"]),
         _tool("agent_kb.material_preview", "Preview one task material. Text files return a bounded text snippet; binary files return a short-lived preview URL.", {"material_id": string, "max_chars": integer, "url_expires": integer}, ["material_id"]),
-        _tool("agent_kb.material_download", "Return a short-lived full-file download URL for one task material.", {"material_id": string, "url_expires": integer}, ["material_id"]),
+        _tool("agent_kb.material_download", "Download one task material. By default returns a URL plus auth instructions; set inline=true only for small files that should be returned as base64 in JSON-RPC.", {"material_id": string, "url_expires": integer, "inline": boolean, "max_bytes": integer}, ["material_id"]),
         _tool("agent_kb.material_upload", "Upload a result material for the current Agent's claimed task using base64 content. Returns the material id for task_submit.result_material_ids.", {"task_id": string, "filename": string, "content_base64": string, "title": string, "content_type": string, "lease_token": string, "idempotency_key": string, "is_result": boolean}, ["task_id", "filename", "content_base64", "lease_token", "idempotency_key"]),
         _tool("agent_kb.task_claim", "Claim a task and receive a lease token.", {"task_id": string}, ["task_id"]),
         _tool("agent_kb.task_submit", "Submit task result using lease and idempotency key.", {"task_id": string, "result_summary": string, "actual_hours": integer, "lease_token": string, "idempotency_key": string, "result_material_ids": string_array}, ["task_id", "result_summary", "lease_token", "idempotency_key"]),
@@ -180,6 +181,38 @@ def _absolute_url(url: str | None, request: Request) -> str | None:
     return url
 
 
+def _hmac_url_auth_instructions(url: str) -> dict[str, Any]:
+    parsed = urlsplit(url)
+    path = parsed.path or "/"
+    query = parsed.query or ""
+    empty_body_sha256 = sha256_bytes(b"")
+    return {
+        "auth": "hmac",
+        "required_headers": [
+            "x-agent-id",
+            "x-access-key",
+            "x-timestamp",
+            "x-nonce",
+            "x-content-sha256",
+            "x-signature",
+        ],
+        "canonical_request": {
+            "method": "GET",
+            "path": path,
+            "query": query,
+            "content_sha256": empty_body_sha256,
+        },
+        "string_to_sign": "GET\n{path}\n{query}\n{x-timestamp}\n{x-nonce}\n{x-content-sha256}",
+        "signature": "hex_hmac_sha256(secret_key, string_to_sign)",
+        "notes": [
+            "Use a fresh x-timestamp and x-nonce for this GET request.",
+            "For GET downloads the request body is empty, so x-content-sha256 must be the SHA256 of empty bytes.",
+            "The path must be the URL path, for example /mcp/materials/{material_id}/download, not /mcp.",
+            "The query line is empty when the URL has no query string.",
+        ],
+    }
+
+
 def _material_extension(material: TaskMaterial) -> str:
     source = material.file_path or material.url or material.title or ""
     return os.path.splitext(source.lower())[1]
@@ -203,6 +236,146 @@ def _material_payload(material: TaskMaterial, request: Request) -> dict[str, Any
         "updated_at": material.updated_at,
         "can_preview": bool(material.content or material.url or material.file_path),
         "can_download": bool(material.file_path or material.url or material.content),
+    }
+
+
+def _material_detail_payload(material: TaskMaterial, request: Request) -> dict[str, Any]:
+    payload = _material_payload(material, request)
+    if material.file_path or material.url or material.content is not None:
+        download_url, delivery = _material_access_url(material, request)
+        payload["download_url"] = download_url
+        payload["download_delivery"] = delivery
+        payload["download_expires_in"] = 3600 if delivery == "presigned_url" else None
+        if delivery == "authenticated_url":
+            payload["download_auth_instructions"] = _hmac_url_auth_instructions(download_url)
+    else:
+        payload["download_url"] = None
+        payload["download_delivery"] = None
+        payload["download_expires_in"] = None
+    return payload
+
+
+def _status_log_payload(log: Any) -> dict[str, Any]:
+    return {
+        "id": log.id,
+        "task_id": log.task_id,
+        "agent_id": log.agent_id,
+        "admin_uuid": log.admin_uuid,
+        "from_status": log.from_status,
+        "to_status": log.to_status,
+        "change_reason": log.change_reason,
+        "created_at": log.created_at,
+    }
+
+
+def _task_status_nodes(task: Task, status_logs: list[Any]) -> list[dict[str, Any]]:
+    reached_statuses = {log.to_status for log in status_logs}
+    if task.status:
+        reached_statuses.add(task.status.value)
+    created_status = task.status.value if not status_logs and task.status else TaskStatus.PENDING.value
+    reached_statuses.add(created_status)
+
+    latest_log_by_status = {log.to_status: log for log in status_logs}
+    nodes = []
+    current_status = task.status.value if task.status else None
+    for status in TaskStatus:
+        log = latest_log_by_status.get(status.value)
+        nodes.append({
+            "status": status.value,
+            "reached": status.value in reached_statuses,
+            "current": status.value == current_status,
+            "reached_at": log.created_at if log else (task.created_at if status.value == created_status else None),
+            "actor_agent_id": log.agent_id if log else None,
+            "actor_admin_uuid": log.admin_uuid if log else None,
+            "reason": log.change_reason if log else None,
+        })
+    return nodes
+
+
+def _submission_payload(task: Task, result_materials: list[TaskMaterial], db: Session, request: Request) -> dict[str, Any] | None:
+    metadata = task.metadata_json or {}
+    receipts = (
+        db.query(TaskSubmissionReceipt)
+        .filter(TaskSubmissionReceipt.task_id == task.id)
+        .order_by(TaskSubmissionReceipt.created_at.desc())
+        .all()
+    )
+    if not metadata.get("result_summary") and not receipts and not result_materials:
+        return None
+    latest_receipt = receipts[0] if receipts else None
+    return {
+        "result_summary": metadata.get("result_summary") or (latest_receipt.result_summary if latest_receipt else None),
+        "submitted_at": metadata.get("submitted_at") or (latest_receipt.created_at if latest_receipt else None),
+        "result_material_ids": metadata.get("result_material_ids") or [material.id for material in result_materials],
+        "result_materials": [_material_detail_payload(material, request) for material in result_materials],
+        "receipts": [
+            {
+                "id": receipt.id,
+                "agent_id": receipt.agent_id,
+                "idempotency_key": receipt.idempotency_key,
+                "result_summary": receipt.result_summary,
+                "status": receipt.status,
+                "created_at": receipt.created_at,
+            }
+            for receipt in receipts
+        ],
+    }
+
+
+def _review_payload(task: Task) -> dict[str, Any]:
+    metadata = task.metadata_json or {}
+    return {
+        "reject_reason": metadata.get("reject_reason"),
+        "rejected_at": metadata.get("rejected_at"),
+        "admin_reset_reason": metadata.get("admin_reset_reason"),
+        "admin_reset_at": metadata.get("admin_reset_at"),
+        "abandon_reason": metadata.get("abandon_reason"),
+        "abandoned_at": metadata.get("abandoned_at"),
+    }
+
+
+def _task_detail_payload(task: Task, agent_id: str, db: Session, request: Request) -> dict[str, Any]:
+    _ensure_task_material_access(task, agent_id)
+    materials = (
+        db.query(TaskMaterial)
+        .filter(TaskMaterial.task_id == task.id)
+        .order_by(TaskMaterial.order_index.asc(), TaskMaterial.created_at.asc())
+        .all()
+    )
+    input_materials = [material for material in materials if not material.is_result]
+    result_materials = [material for material in materials if material.is_result]
+    status_logs = task.status_logs.all()
+    metadata = task.metadata_json or {}
+    return {
+        "task": TaskResponse.model_validate(task),
+        "materials": {
+            "items": [_material_detail_payload(material, request) for material in materials],
+            "input_items": [_material_detail_payload(material, request) for material in input_materials],
+            "result_items": [_material_detail_payload(material, request) for material in result_materials],
+            "total": len(materials),
+            "input_total": len(input_materials),
+            "result_total": len(result_materials),
+        },
+        "status_nodes": _task_status_nodes(task, status_logs),
+        "status_history": [_status_log_payload(log) for log in status_logs],
+        "submission": _submission_payload(task, result_materials, db, request),
+        "review": _review_payload(task),
+        "agent_instructions": {
+            "claim_required": task.status in {TaskStatus.PENDING, TaskStatus.UNCLAIMED},
+            "lease_required_for_submit": True,
+            "active_lease_token": task.lease_token if task.assigned_to_agent_id == agent_id else None,
+            "active_lease_expires_at": task.lease_expires_at if task.assigned_to_agent_id == agent_id else None,
+            "material_download_tool": "agent_kb.material_download",
+            "result_upload_tool": "agent_kb.material_upload",
+            "submit_tool": "agent_kb.task_submit",
+        },
+        "metadata": {
+            "result_summary": metadata.get("result_summary"),
+            "submitted_at": metadata.get("submitted_at"),
+            "result_material_ids": metadata.get("result_material_ids"),
+            "reject_reason": metadata.get("reject_reason"),
+            "rejected_at": metadata.get("rejected_at"),
+        },
     }
 
 
@@ -251,6 +424,32 @@ def _download_material_bytes(material: TaskMaterial) -> bytes:
     raise ValidationError("Material has no downloadable file content")
 
 
+def _download_material_inline(material: TaskMaterial, request: Request, max_bytes: int) -> dict[str, Any]:
+    if material.url and not material.file_path and material.content is None:
+        return {
+            "material": _material_payload(material, request),
+            "download_url": _absolute_url(material.url, request),
+            "expires_in": None,
+            "delivery": "url",
+        }
+
+    data = _download_material_bytes(material)
+    if len(data) > max_bytes:
+        raise ValidationError(f"Material is too large for inline download: {len(data)} bytes > {max_bytes} bytes")
+    filename = material.title or material.file_path or f"{material.id}.bin"
+    mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    return {
+        "material": _material_payload(material, request),
+        "filename": filename,
+        "mime_type": mime_type,
+        "size": len(data),
+        "sha256": sha256_bytes(data),
+        "content_base64": base64.b64encode(data).decode("ascii"),
+        "encoding": "base64",
+        "delivery": "inline_base64",
+    }
+
+
 def _preview_material(material: TaskMaterial, request: Request, max_chars: int, url_expires: int) -> dict[str, Any]:
     ext = _material_extension(material)
     if material.content is not None:
@@ -273,12 +472,17 @@ def _preview_material(material: TaskMaterial, request: Request, max_chars: int, 
         }
 
     if material.file_path:
-        return {
+        preview_url, delivery = _material_access_url(material, request, expires=url_expires)
+        payload = {
             "kind": "url",
             "material": _material_payload(material, request),
-            "preview_url": _material_access_url(material, request, expires=url_expires)[0],
+            "preview_url": preview_url,
             "expires_in": url_expires,
+            "delivery": delivery,
         }
+        if delivery == "authenticated_url":
+            payload["auth_instructions"] = _hmac_url_auth_instructions(preview_url)
+        return payload
 
     if material.url:
         return {
@@ -399,7 +603,8 @@ def _call_tool(name: str, arguments: dict[str, Any], agent_id: str | None, db: S
         return _content({"items": [TaskResponse.model_validate(task) for task in tasks], "total": len(tasks)})
 
     if name == "agent_kb.task_get":
-        return _content(TaskResponse.model_validate(TaskService(db).get_task(arguments["task_id"])))
+        task = TaskService(db).get_task(arguments["task_id"])
+        return _content(_task_detail_payload(task, agent_id, db, request))
 
     if name == "agent_kb.task_materials":
         task = TaskService(db).get_task(arguments["task_id"])
@@ -424,6 +629,13 @@ def _call_tool(name: str, arguments: dict[str, Any], agent_id: str | None, db: S
 
     if name == "agent_kb.material_download":
         material = _get_material_for_agent(arguments["material_id"], agent_id, db)
+        inline = bool(arguments.get("inline", False))
+        if inline:
+            return _content(_download_material_inline(
+                material=material,
+                request=request,
+                max_bytes=min(int(arguments.get("max_bytes", 20 * 1024 * 1024)), 50 * 1024 * 1024),
+            ))
         if material.file_path:
             expires = min(int(arguments.get("url_expires", 3600)), 24 * 3600)
             download_url, delivery = _material_access_url(material, request, expires=expires)
@@ -432,6 +644,7 @@ def _call_tool(name: str, arguments: dict[str, Any], agent_id: str | None, db: S
                 "download_url": download_url,
                 "expires_in": expires,
                 "delivery": delivery,
+                "auth_instructions": _hmac_url_auth_instructions(download_url) if delivery == "authenticated_url" else None,
             })
         if material.url:
             return _content({

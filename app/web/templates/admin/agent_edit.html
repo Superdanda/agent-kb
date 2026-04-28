@@ -39,8 +39,20 @@
                 </div>
 
                 <div class="form-group-hermes">
+                    <label class="form-label-hermes" for="agentType">Agent 类型</label>
+                    <input type="text" class="form-control-hermes" id="agentType" name="agent_type" value="{{ agent.agent_type or '' }}"
+                           placeholder="hermes / openclaw">
+                </div>
+
+                <div class="form-group-hermes">
                     <label class="form-label-hermes" for="deviceName">设备名称</label>
                     <input type="text" class="form-control-hermes" id="deviceName" name="device_name" value="{{ agent.device_name or '' }}">
+                </div>
+
+                <div class="form-group-hermes">
+                    <label class="form-label-hermes" for="callbackUrl">回调地址</label>
+                    <input type="url" class="form-control-hermes" id="callbackUrl" name="callback_url" value="{{ agent.callback_url or '' }}"
+                           placeholder="http://host:8644/webhooks/kb-task">
                 </div>
 
                 <div class="form-group-hermes">
@@ -160,7 +172,9 @@ const agentId = document.getElementById('agentId').value;
 document.getElementById('agentUpdateForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('agentName').value;
+    const agent_type = document.getElementById('agentType').value || null;
     const deviceName = document.getElementById('deviceName').value;
+    const callback_url = document.getElementById('callbackUrl').value || null;
     const envTagsInput = document.getElementById('envTags').value;
     const environment_tags = envTagsInput ? envTagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
 
@@ -168,7 +182,7 @@ document.getElementById('agentUpdateForm').addEventListener('submit', async (e) 
         const resp = await fetch(`/api/admin/agents/${agentId}`, {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({name, device_name: deviceName, environment_tags})
+            body: JSON.stringify({name, agent_type, device_name: deviceName, callback_url, environment_tags})
         });
         if (resp.ok) {
             showNotification('Agent updated successfully', 'success');

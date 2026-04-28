@@ -62,10 +62,17 @@ async def login(
     return {"message": "Login successful", "username": admin.username}
 
 
-@router.post("/logout")
-async def logout(response: Response):
+@router.post("/logout", include_in_schema=False)
+async def logout_post(response: Response):
     response.delete_cookie(key="admin_token")
     return {"message": "Logout successful"}
+
+
+@router.get("/logout", include_in_schema=False)
+async def logout_get(response: Response):
+    response.delete_cookie(key="admin_token")
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/admin/login", status_code=302)
 
 
 @router.get("/me", response_model=AdminResponse)

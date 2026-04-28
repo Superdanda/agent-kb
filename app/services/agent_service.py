@@ -25,7 +25,9 @@ class AgentService:
             id=str(uuid.uuid4()),
             agent_code=data.agent_code,
             name=data.name,
+            agent_type=getattr(data, "agent_type", None),
             device_name=data.device_name,
+            callback_url=getattr(data, "callback_url", None),
             environment_tags=data.environment_tags or [],
             status=AgentStatus.ACTIVE,
         )

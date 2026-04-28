@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, Form, Query, UploadFile, File
+from fastapi import APIRouter, Request, Depends, Form, Query, UploadFile, File, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -385,6 +385,8 @@ async def new_task_page(
 async def task_detail_page(
     request: Request,
     task_id: str,
+    notify_status: Optional[str] = Query(None),
+    notify_error: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     from fastapi.responses import RedirectResponse
@@ -476,10 +478,47 @@ async def task_detail_page(
         "reject_reason": reject_reason,
         "rejected_at": rejected_at,
         "admin_reset_reason": admin_reset_reason,
+        "notify_status": notify_status,
+        "notify_error": notify_error,
         "priorities": list(TaskPriority),
         "difficulties": list(TaskDifficulty),
         "agents": agents,
     })
+
+
+@router.post("/tasks/{task_id}/notify-agent")
+async def notify_task_agent_from_page(
+    request: Request,
+    task_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    from fastapi.responses import RedirectResponse
+    from app.api.middleware.admin_auth import get_current_admin
+    from app.modules.task_board.services.task_service import TaskService
+
+    try:
+        await get_current_admin(request, db)
+    except Exception:
+        return RedirectResponse(url="/admin/login", status_code=302)
+
+    task = TaskService(db).get_task(task_id)
+    if not task.assigned_to_agent_id:
+        return RedirectResponse(url=f"/tasks/{task_id}?notify_status=failed&notify_error=unassigned", status_code=302)
+    if not task.assigned_to or not task.assigned_to.callback_url:
+        return RedirectResponse(url=f"/tasks/{task_id}?notify_status=failed&notify_error=missing_callback_url", status_code=302)
+
+    def _notify_in_background() -> None:
+        from app.core.database import SessionLocal
+
+        worker_db = SessionLocal()
+        try:
+            TaskService(worker_db).notify_agent_for_task(task_id=task_id, event="task.assigned")
+        finally:
+            worker_db.close()
+
+    background_tasks.add_task(_notify_in_background)
+    return RedirectResponse(url=f"/tasks/{task_id}?notify_status=success", status_code=302)
 
 
 @router.get("/tasks/{task_id}/ai-edit", response_class=HTMLResponse)

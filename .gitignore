@@ -3922,4 +3922,11 @@
 /venv/lib/python3.11/site-packages/typing_extensions.py
 /venv/pyvenv.cfg
 
+
+.idea/
+
+.venv/
+
+pictures/
+
 pictures/

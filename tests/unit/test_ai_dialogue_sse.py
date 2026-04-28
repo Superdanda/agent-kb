@@ -8,9 +8,11 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.database import Base
 from app.modules.ai_dialogue import router as ai_router
-from app.modules.ai_dialogue.router import _normalize_fields, _parse_sse_action_data
+from app.modules.ai_dialogue.router import _attach_uploaded_files_to_task, _normalize_fields, _parse_sse_action_data
 from app.modules.ai_dialogue.service import AIDialogueService, _coerce_json_object, _sse_event
 from app.modules.task_board.models.task import Task
+from app.modules.task_board.models.task_material import TaskMaterial
+from app.modules.task_board.services.task_service import TaskService
 
 
 def test_sse_event_encodes_action_payload_once():
@@ -52,6 +54,41 @@ def test_ai_dialogue_service_summary_accepts_string_encoded_fields():
 
 def test_coerce_json_object_rejects_non_object_json():
     assert _coerce_json_object('"plain string"') == {}
+
+
+def test_ai_create_attach_uploaded_files_to_task(monkeypatch):
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    TestingSessionLocal = sessionmaker(bind=engine)
+    db = TestingSessionLocal()
+    monkeypatch.setattr(
+        "app.modules.task_board.services.material_service.upload_bytes_to_storage",
+        lambda **kwargs: f"/uploads/{kwargs['object_key']}",
+    )
+    try:
+        task = TaskService(db).create_task(title="Contract review")
+
+        count, errors = _attach_uploaded_files_to_task(
+            db,
+            task.id,
+            [
+                {
+                    "filename": "contract.docx",
+                    "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "contents": b"docx-bytes",
+                }
+            ],
+        )
+
+        materials = db.query(TaskMaterial).filter(TaskMaterial.task_id == task.id).all()
+        assert count == 1
+        assert errors == []
+        assert len(materials) == 1
+        assert materials[0].title == "contract.docx"
+        assert materials[0].is_result is False
+        assert materials[0].file_path.endswith(".docx")
+    finally:
+        db.close()
 
 
 @pytest.mark.asyncio

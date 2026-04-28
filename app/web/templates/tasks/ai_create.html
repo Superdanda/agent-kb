@@ -729,6 +729,7 @@
         const title = data.title || '未命名任务';
         const fields = data.fields || {};
         const materialCount = data.material_count || 0;
+        const materialErrors = data.material_errors || [];
 
         const fieldLabels = {
             title: '标题', description: '描述', priority: '优先级',
@@ -753,6 +754,7 @@
             <p style="color:rgba(212,225,245,0.7);margin:0 0 0.6rem;font-size:0.88rem;">本次 AI 自动添加的内容如下：</p>
             ${fieldRows}
             ${materialCount > 0 ? `<div class="field-row"><span class="field-label">任务材料</span><span class="field-value">已关联 ${materialCount} 个文件</span></div>` : ''}
+            ${materialErrors.length > 0 ? `<div class="field-row"><span class="field-label">材料异常</span><span class="field-value">${materialErrors.map(e => `${escapeHtml(e.filename || '文件')}：${escapeHtml(e.error || '上传失败')}`).join('<br>')}</span></div>` : ''}
             <a class="view-link" href="/tasks/${taskId}">
                 <span>查看任务详情</span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>

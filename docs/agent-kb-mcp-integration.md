@@ -52,7 +52,34 @@ The HMAC signing string remains unchanged:
 {content_sha256}
 ```
 
-For MCP calls, the path is `/mcp`.
+For MCP JSON-RPC tool calls, the path is `/mcp`.
+
+Some tools may return an `authenticated_url`, for example `/mcp/materials/{material_id}/download`.
+Those URLs use the same HMAC algorithm and the same credentials, but they are separate HTTP requests and must be signed again with their own method, path, query, timestamp, nonce, and content hash.
+
+For authenticated material download URLs:
+
+```text
+method = GET
+path = /mcp/materials/{material_id}/download
+query = "" unless the URL contains a query string
+content_sha256 = SHA256(empty bytes)
+```
+
+The signing string is therefore:
+
+```text
+GET
+/mcp/materials/{material_id}/download
+
+{timestamp}
+{nonce}
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+```
+
+Use a fresh `x-timestamp` and `x-nonce` for this GET request. Do not reuse the JSON-RPC request signature, because the method and path are different. Tool responses that return an `authenticated_url` include `auth_instructions` with these canonical values so clients can implement the follow-up request mechanically.
+
+For binary or large materials such as `.docx`, prefer the authenticated URL flow. Base64 inline responses are useful only for small files because JSON-RPC clients, logs, or code execution wrappers may truncate long strings.
 
 ## Bootstrap Flow
 

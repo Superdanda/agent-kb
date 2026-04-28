@@ -84,6 +84,10 @@ class TaskService:
                 change_reason="Task created",
             )
 
+        self._notify_task_webhook(
+            task,
+            "task.assigned" if assigned_to_agent_id else "task.created",
+        )
         return task
 
     def get_task(self, task_id: str) -> Task:
@@ -119,6 +123,7 @@ class TaskService:
             task.title = title.strip()
         if description is not None:
             task.description = description
+        previous_assignee = task.assigned_to_agent_id
         if assigned_to_agent_id is not None:
             task.assigned_to_agent_id = assigned_to_agent_id
         if domain_id is not None:
@@ -141,6 +146,8 @@ class TaskService:
         task.updated_at = datetime.now(timezone.utc)
         self.db.commit()
         self.db.refresh(task)
+        event = "task.assigned" if assigned_to_agent_id and assigned_to_agent_id != previous_assignee else "task.updated"
+        self._notify_task_webhook(task, event)
         return task
 
     def update_task_status(
@@ -559,6 +566,10 @@ class TaskService:
         self.db.commit()
         return True
 
+    def notify_agent_for_task(self, task_id: str, event: str = "task.assigned"):
+        task = self.get_task(task_id)
+        return self._notify_task_webhook(task, event)
+
     def ensure_agent_active_lease(self, task_id: str, agent_id: str, lease_token: str) -> Task:
         task = self.get_task(task_id)
         self._ensure_assignee(task, agent_id)
@@ -663,3 +674,37 @@ class TaskService:
         self.db.commit()
         self.db.refresh(log)
         return log
+
+    def _notify_task_webhook(self, task: Task, event: str):
+        try:
+            from app.services.kb_webhook_service import KbWebhookService
+
+            delivery = KbWebhookService().notify_task(
+                db=self.db,
+                task=task,
+                event=event,
+            )
+            if delivery.error in ("webhook_disabled", "no_callback_url_configured", "agent_has_no_credentials"):
+                return delivery
+            metadata = dict(task.metadata_json or {})
+            metadata["last_webhook_notification"] = {
+                "event": event,
+                "delivered": delivery.delivered,
+                "status_code": delivery.status_code,
+                "error": delivery.error,
+                "notified_at": datetime.now(timezone.utc).isoformat(),
+            }
+            task.metadata_json = metadata
+            self.db.commit()
+            return delivery
+        except Exception as exc:
+            self.db.rollback()
+            self._log_activity(
+                agent_id=task.assigned_to_agent_id or task.created_by_agent_id,
+                action="webhook.notify",
+                object_type="task",
+                object_id=task.id,
+                status="FAILED",
+                detail={"event": event, "error": str(exc)},
+            )
+            raise
