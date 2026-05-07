@@ -11,7 +11,7 @@ from app.core.exceptions import AlreadyExistsError, FileValidationError, Resourc
 from app.core.file_storage import get_default_bucket, read_upload_buffer, upload_bytes_to_storage
 from app.models.admin_user import AdminUser
 from app.repositories.admin_user_repo import AdminUserRepository
-from app.utils.file_check import validate_magic_number
+from app.core.file_security import validate_magic_number
 
 
 ACTIVE_STATUS = "ACTIVE"

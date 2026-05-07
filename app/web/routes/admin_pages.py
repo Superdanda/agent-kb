@@ -15,6 +15,7 @@ from app.api.middleware.admin_auth import get_current_admin
 from app.services.domain_service import DomainService
 from app.services.skill_service import SkillService
 from app.services.admin_user_service import AdminUserService
+from app.utils.pagination import calculate_total_pages
 from app.web import templates
 
 
@@ -86,7 +87,7 @@ async def admin_users(
     current_admin = await get_current_admin(request, db)
     page_size = 20
     admins, total = AdminUserService(db).list_admins(page=page, size=page_size, keyword=keyword)
-    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+    total_pages = calculate_total_pages(total, page_size)
     return templates.TemplateResponse("admin/users.html", {
         "request": request,
         "admins": admins,
@@ -139,7 +140,7 @@ async def admin_agents(
     total = query.count()
 
     # Calculate pagination
-    total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+    total_pages = calculate_total_pages(total, per_page)
     offset = (page - 1) * per_page
 
     # Get paginated results
@@ -234,7 +235,7 @@ async def admin_registration_requests(
     page_size = 20
     requests, total = svc.list_all(status_enum, page, page_size)
     pending_list, pending_count = svc.list_all(RegistrationStatus.PENDING)
-    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+    total_pages = calculate_total_pages(total, page_size)
 
     return templates.TemplateResponse("admin/registration_requests.html", {
         "request": request,

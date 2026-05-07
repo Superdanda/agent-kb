@@ -9,7 +9,7 @@ from app.core.database import get_db
 from app.api.middleware.auth import get_current_agent
 from app.modules.task_board.models.task_material import TaskMaterial
 from app.modules.task_board.models.task import Task
-from app.utils.security_check import validate_file_bytes
+from app.core.file_security import validate_file_bytes
 
 router = APIRouter(prefix="/files", tags=["task_files"])
 

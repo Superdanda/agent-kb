@@ -8,6 +8,7 @@ from app.api.middleware.admin_auth import get_current_admin
 from app.api.schemas.agent_registration import AgentRegistrationResponse, AgentCredentialsResponse
 from app.services.agent_registration_service import AgentRegistrationService
 from app.models.admin_user import AdminUser
+from app.utils.pagination import build_paginated_response
 
 router = APIRouter(prefix="/admin/agent-registrations", tags=["admin-agent-registrations"])
 
@@ -45,15 +46,11 @@ def list_registrations(
             raise ValidationError(f"Invalid status: {status_filter}. Must be PENDING, APPROVED, or REJECTED")
 
     records, total = svc.list_all(status_enum, page, page_size)
-    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
-
-    return PaginatedRegistrationsResponse(
-        records=[AgentRegistrationResponse.from_request(r) for r in records],
-        total=total,
-        page=page,
-        page_size=page_size,
-        total_pages=total_pages,
+    response = build_paginated_response(
+        [AgentRegistrationResponse.from_request(r) for r in records],
+        total, page, page_size
     )
+    return PaginatedRegistrationsResponse(**response)
 
 
 @router.get("/{request_id}", response_model=AgentRegistrationResponse)

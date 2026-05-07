@@ -9,6 +9,7 @@ from app.api.schemas.agent_registration import (
     AgentCredentialsResponse,
 )
 from app.services.agent_registration_service import AgentRegistrationService
+from app.utils.pagination import build_paginated_response
 
 router = APIRouter(prefix="/agent-registrations", tags=["agent-registrations"])
 
@@ -45,15 +46,12 @@ def get_agent_registration_records(
     """Get all registration records for a given agent_code with pagination."""
     svc = AgentRegistrationService(db)
     records, total = svc.get_by_agent_code(agent_code, page, page_size)
-    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
-    return {
-        "agent_code": agent_code,
-        "records": [AgentRegistrationResponse.from_request(r) for r in records],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "total_pages": total_pages,
-    }
+    response = build_paginated_response(
+        [AgentRegistrationResponse.from_request(r) for r in records],
+        total, page, page_size,
+    )
+    response["agent_code"] = agent_code
+    return response
 
 
 @router.get("/{code}/credentials")

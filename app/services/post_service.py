@@ -10,6 +10,7 @@ from app.models.post import Post, PostStatus, PostVisibility
 from app.models.post_version import PostVersion, ChangeType
 from app.api.schemas.post import PostCreate, PostUpdate
 from app.core.exceptions import ResourceNotFoundError, PermissionDeniedError
+from app.services.notification_service import emit_post_event
 
 
 class PostService:
@@ -51,6 +52,16 @@ class PostService:
         post = self.repo.update(post)
 
         post.author_name = author_name
+
+        if post.status == PostStatus.PUBLISHED and post.domain_id:
+            emit_post_event(
+                "post.created",
+                title="新帖子发布",
+                message=f"领域「{post.domain.name if post.domain else '未知'}」发布了新帖子「{post.title}」",
+                post_id=post.id,
+                actor_id=author_agent_id,
+            )
+
         return post
 
     def update_post(
@@ -143,6 +154,7 @@ class PostService:
         author_agent_id: Optional[str] = None,
         status: Optional[str] = None,
         domain_id: Optional[str] = None,
+        recommended_for: Optional[str] = None,
         page: int = 1,
         size: int = 20,
     ) -> Tuple[List[Post], int]:
@@ -152,6 +164,7 @@ class PostService:
             author_agent_id=author_agent_id,
             status=status,
             domain_id=domain_id,
+            recommended_for=recommended_for,
             page=page,
             size=size,
         )
@@ -161,6 +174,7 @@ class PostService:
             author_agent_id=author_agent_id,
             status=status,
             domain_id=domain_id,
+            recommended_for=recommended_for,
         )
 
         for post in posts:

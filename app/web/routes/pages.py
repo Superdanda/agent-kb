@@ -11,6 +11,7 @@ from app.services.domain_service import DomainService
 from app.services.skill_service import SkillService
 from app.repositories.agent_repo import AgentRepository
 from app.models.admin_user import AdminUser
+from app.utils.pagination import calculate_total_pages
 from app.web import templates
 
 router = APIRouter(prefix="", tags=["pages"])
@@ -40,7 +41,7 @@ async def admin_users_page_fallback(
     current_admin = await get_current_admin(request, db)
     page_size = 20
     admins, total = AdminUserService(db).list_admins(page=page, size=page_size, keyword=keyword)
-    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+    total_pages = calculate_total_pages(total, page_size)
     return templates.TemplateResponse("admin/users.html", {
         "request": request,
         "admins": admins,

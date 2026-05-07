@@ -16,6 +16,7 @@ from app.api.schemas.skill import (
 from app.core.database import get_db
 from app.models.admin_user import AdminUser
 from app.services.skill_service import SkillService
+from app.utils.pagination import calculate_total_pages
 
 router = APIRouter(prefix="/skills", tags=["skills"])
 admin_router = APIRouter(prefix="/admin/skills", tags=["admin_skills"])
@@ -66,7 +67,7 @@ def list_skills(
         page=page,
         size=size,
     )
-    return {"items": skills, "total": total, "page": page, "size": size}
+    return {"items": skills, "total": total, "page": page, "size": size, "total_pages": calculate_total_pages(total, size)}
 
 
 @router.get("/{skill_id}", response_model=SkillResponse)

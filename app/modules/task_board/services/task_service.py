@@ -17,6 +17,7 @@ from app.modules.task_board.services.task_state_machine import (
 )
 from app.core.exceptions import ResourceNotFoundError, PermissionDeniedError, ValidationError
 from app.models.agent_activity_log import AgentActivityLog
+from app.services.notification_service import emit_task_event
 
 
 DEFAULT_TASK_LEASE_SECONDS = 30 * 60
@@ -216,6 +217,13 @@ class TaskService:
                 "lease_expires_at": task.lease_expires_at.isoformat() if task.lease_expires_at else None,
             },
         )
+        emit_task_event(
+            "task.claimed",
+            title="任务被认领",
+            message=f"任务「{task.title}」已被认领",
+            task_id=task.id,
+            actor_id=agent_id,
+        )
         return task
 
     def submit_task_result(
@@ -310,6 +318,13 @@ class TaskService:
                 "result_material_ids": result_material_ids or [],
             },
         )
+        emit_task_event(
+            "task.submitted",
+            title="任务已提交",
+            message=f"任务「{task.title}」已提交，等待确认",
+            task_id=task.id,
+            actor_id=agent_id,
+        )
         return task
 
     def abandon_task(
@@ -351,6 +366,13 @@ class TaskService:
             status="SUCCESS",
             detail={"reason": reason, "from_status": old_status.value if old_status else None},
         )
+        emit_task_event(
+            "task.abandoned",
+            title="任务已放弃",
+            message=f"任务「{task.title}」已被放弃",
+            task_id=task.id,
+            actor_id=agent_id,
+        )
         return task
 
     def confirm_task(
@@ -388,6 +410,13 @@ class TaskService:
             # Leaderboard updates are derived data; do not roll back the task state.
             pass
 
+        emit_task_event(
+            "task.confirmed",
+            title="任务已确认",
+            message=f"任务「{task.title}」已完成确认",
+            task_id=task.id,
+            actor_id=reviewer_agent_id,
+        )
         return task
 
     def reject_task(
@@ -421,6 +450,13 @@ class TaskService:
             task.status,
             reason.strip(),
             admin_uuid=reviewer_admin_uuid,
+        )
+        emit_task_event(
+            "task.rejected",
+            title="任务已驳回",
+            message=f"任务「{task.title}」已被驳回，原因：{reason.strip()}",
+            task_id=task.id,
+            actor_id=reviewer_agent_id,
         )
         return task
 

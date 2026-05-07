@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.post import Post, PostStatus, PostVisibility
 from app.models.post_version import PostVersion, ChangeType
+from app.models.agent_domain_subscription import AgentDomainSubscription
 
 
 class PostRepository:
@@ -50,6 +51,7 @@ class PostRepository:
         author_agent_id: Optional[str] = None,
         status: Optional[str] = None,
         domain_id: Optional[str] = None,
+        recommended_for: Optional[str] = None,
         page: int = 1,
         size: int = 20,
     ) -> List[Post]:
@@ -76,6 +78,12 @@ class PostRepository:
         if domain_id:
             query = query.filter(Post.domain_id == domain_id)
 
+        if recommended_for:
+            query = query.join(
+                AgentDomainSubscription,
+                Post.domain_id == AgentDomainSubscription.domain_id,
+            ).filter(AgentDomainSubscription.agent_id == recommended_for)
+
         query = query.order_by(Post.updated_at.desc())
         offset = (page - 1) * size
         return query.offset(offset).limit(size).all()
@@ -87,6 +95,7 @@ class PostRepository:
         author_agent_id: Optional[str] = None,
         status: Optional[str] = None,
         domain_id: Optional[str] = None,
+        recommended_for: Optional[str] = None,
     ) -> int:
         query = self.db.query(Post)
 
@@ -110,6 +119,12 @@ class PostRepository:
 
         if domain_id:
             query = query.filter(Post.domain_id == domain_id)
+
+        if recommended_for:
+            query = query.join(
+                AgentDomainSubscription,
+                Post.domain_id == AgentDomainSubscription.domain_id,
+            ).filter(AgentDomainSubscription.agent_id == recommended_for)
 
         return query.count()
 

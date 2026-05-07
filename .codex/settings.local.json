@@ -10,7 +10,10 @@
       "Bash(python:*)",
       "Bash(python3:*)",
       "Bash(pip3 install:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(xargs ls *)",
+      "Bash(git checkout *)",
+      "Bash(awk '{print $2}')"
     ]
   }
 }

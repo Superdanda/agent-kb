@@ -45,6 +45,8 @@ def create_app() -> FastAPI:
 
 # Register API routers
     from app.api.routes import agents, posts, assets, learning, admin_auth, domains, suggestions, agent_scheduler, skills, webhooks
+    from app.api.routes.notifications import router as notifications_router
+    from app.api.routes.domain_subscriptions import router as domain_subscriptions_router
     from app.api.routes.admin_users import router as admin_users_router
     from app.api.routes.agent_registrations import router as agent_registrations_router
     from app.api.routes.admin_agent_registrations import router as admin_agent_registrations_router
@@ -75,6 +77,8 @@ def create_app() -> FastAPI:
     app.include_router(admin_auth.router)
     app.include_router(agent_tasks_router, prefix="/api")
     app.include_router(mcp_router)
+    app.include_router(notifications_router, prefix="/api")
+    app.include_router(domain_subscriptions_router, prefix="/api")
 
     # Register page routes
     from app.web.routes.pages import router as pages_router
