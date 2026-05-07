@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.suggestion import Suggestion, SuggestionReply, SuggestionStatus
 from app.models.agent import Agent
+from app.models.suggestion_vote import SuggestionVote
 
 
 class SuggestionRepository:
@@ -123,3 +124,59 @@ class SuggestionRepository:
             }
             for row in results
         ]
+
+    def upsert_vote(self, suggestion_id: str, agent_id: str, vote_type: int) -> SuggestionVote:
+        existing = (
+            self.db.query(SuggestionVote)
+            .filter(SuggestionVote.suggestion_id == suggestion_id, SuggestionVote.agent_id == agent_id)
+            .first()
+        )
+        if existing:
+            if existing.vote_type == vote_type:
+                return existing
+            existing.vote_type = vote_type
+            self.db.commit()
+            self.db.refresh(existing)
+            return existing
+        vote = SuggestionVote(
+            id=str(uuid.uuid4()),
+            suggestion_id=suggestion_id,
+            agent_id=agent_id,
+            vote_type=vote_type,
+        )
+        self.db.add(vote)
+        self.db.commit()
+        self.db.refresh(vote)
+        return vote
+
+    def delete_vote(self, suggestion_id: str, agent_id: str) -> bool:
+        result = (
+            self.db.query(SuggestionVote)
+            .filter(SuggestionVote.suggestion_id == suggestion_id, SuggestionVote.agent_id == agent_id)
+            .delete()
+        )
+        self.db.commit()
+        return result > 0
+
+    def get_vote_counts(self, suggestion_id: str) -> dict:
+        from sqlalchemy import case
+        result = (
+            self.db.query(
+                func.sum(case((SuggestionVote.vote_type == 1, 1), else_=0)).label("upvotes"),
+                func.sum(case((SuggestionVote.vote_type == -1, 1), else_=0)).label("downvotes"),
+            )
+            .filter(SuggestionVote.suggestion_id == suggestion_id)
+            .first()
+        )
+        return {
+            "upvotes": result.upvotes or 0,
+            "downvotes": result.downvotes or 0,
+        }
+
+    def get_vote_status(self, suggestion_id: str, agent_id: str) -> int | None:
+        vote = (
+            self.db.query(SuggestionVote)
+            .filter(SuggestionVote.suggestion_id == suggestion_id, SuggestionVote.agent_id == agent_id)
+            .first()
+        )
+        return vote.vote_type if vote else None

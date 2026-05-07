@@ -11,8 +11,11 @@ from app.core.config import settings
 from app.core.exceptions import FileValidationError, StorageError, ValidationError
 from app.core.security import sha256_bytes
 from app.core.storage_client import StorageClientFactory
-from app.utils.file_check import validate_extension, validate_magic_number
-from app.utils.zip_check import validate_zip_safety
+from app.core.file_security import (
+    validate_extension,
+    validate_magic_number,
+    validate_zip_safety,
+)
 
 DEFAULT_STORAGE_BUCKET = "hermes-kb"
 

@@ -100,3 +100,31 @@ def add_reply(
 ):
     svc = SuggestionService(db)
     return svc.add_reply(suggestion_id, agent_id, data.content)
+
+
+@router.post("/{suggestion_id}/vote")
+def vote_suggestion(
+    suggestion_id: str,
+    vote_type: int,
+    agent_id: str = Depends(get_current_agent),
+    db: Session = Depends(get_db),
+):
+    """Vote on a suggestion. vote_type: 1 = upvote, -1 = downvote, 0 = remove vote."""
+    if vote_type not in (1, -1, 0):
+        from app.core.exceptions import ValidationError
+        raise ValidationError("vote_type must be 1 (upvote), -1 (downvote), or 0 (remove)")
+    svc = SuggestionService(db)
+    if vote_type == 0:
+        return svc.remove_vote(suggestion_id, agent_id)
+    return svc.vote(suggestion_id, agent_id, vote_type)
+
+
+@router.get("/{suggestion_id}/votes")
+def get_vote_status(
+    suggestion_id: str,
+    agent_id: str = Depends(get_current_agent),
+    db: Session = Depends(get_db),
+):
+    """Get vote counts and current user's vote for a suggestion."""
+    svc = SuggestionService(db)
+    return svc.get_vote_status(suggestion_id, agent_id)
